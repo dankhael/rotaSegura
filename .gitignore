@@ -47,3 +47,5 @@ next-env.d.ts
 
 # misc
 /setup-prompt.md
+/CLAUDE.md
+.vercel

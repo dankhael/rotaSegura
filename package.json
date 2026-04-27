@@ -16,6 +16,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "format": "prettier --write .",
+    "postinstall": "prisma generate",
     "prepare": "husky"
   },
   "lint-staged": {

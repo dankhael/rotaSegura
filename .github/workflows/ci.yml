@@ -10,6 +10,10 @@ jobs:
   verify:
     name: lint + typecheck + test + build
     runs-on: ubuntu-latest
+    env:
+      # Dummy URL for build-time env validation — no real DB needed in CI
+      DATABASE_URL: postgresql://rotasegura:rotasegura@localhost:5432/rotasegura?schema=public
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,11 +24,8 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies
+      - name: Install dependencies (runs prisma generate via postinstall)
         run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
 
       - name: Lint
         run: npm run lint
@@ -36,6 +37,4 @@ jobs:
         run: npm run test
 
       - name: Build
-        env:
-          DATABASE_URL: postgresql://rotasegura:rotasegura@localhost:5432/rotasegura?schema=public
         run: npm run build
