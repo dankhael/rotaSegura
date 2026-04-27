@@ -7,9 +7,12 @@ const envSchema = z.object({
 
 const parsed = envSchema.safeParse(process.env);
 
-if (!parsed.success) {
+// During `next build`, Next.js imports server modules for static analysis before
+// any runtime env is available. Skip the throw so the build succeeds; the
+// validation will run (and fail loudly) on the first real request instead.
+if (process.env.NEXT_PHASE !== "phase-production-build" && !parsed.success) {
   console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
   throw new Error("Invalid environment variables — check .env / .env.local");
 }
 
-export const env = parsed.data;
+export const env = (parsed.data ?? process.env) as z.infer<typeof envSchema>;
