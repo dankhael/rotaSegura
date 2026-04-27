@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: rotasegura-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rotasegura
+      POSTGRES_PASSWORD: rotasegura
+      POSTGRES_DB: rotasegura
+    ports:
+      - "5432:5432"
+    volumes:
+      - rotasegura_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rotasegura -d rotasegura"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  rotasegura_pgdata:
+    name: rotasegura_pgdata
