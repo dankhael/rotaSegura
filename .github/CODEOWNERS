@@ -1,0 +1,6 @@
+# Cada PR pede review automaticamente de todos os owners listados.
+# Basta UMA aprovação de qualquer um deles para o merge ser liberado
+# (ver branch protection em master: required_approving_review_count = 1).
+# O autor da PR nunca é solicitado como reviewer da própria PR.
+
+*       @dankhael @lucas-dan202 @Sonael @PedroH1104
