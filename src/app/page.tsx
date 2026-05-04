@@ -1,18 +1,33 @@
-import Link from "next/link";
+"use client";
+
+import dynamic from "next/dynamic";
+
+// Carregamento dinâmico para evitar erros de SSR (Server Side Rendering)
+const MapWithNoSSR = dynamic(() => import("../components/ui/Map"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[500px] w-full bg-gray-100 animate-pulse flex items-center justify-center">
+      Carregando mapa...
+    </div>
+  ),
+});
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-zinc-50 px-6 py-24 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
-      <h1 className="text-5xl font-semibold tracking-tight">Rota Segura</h1>
-      <p className="max-w-md text-center text-lg text-zinc-600 dark:text-zinc-400">
-        App de segurança em desastres — encontre rotas e pontos de apoio durante emergências.
-      </p>
-      <Link
-        href="/mapa"
-        className="rounded-full border border-zinc-900/10 bg-zinc-900 px-6 py-3 text-sm font-medium text-zinc-50 transition-colors hover:bg-zinc-700 dark:border-zinc-50/10 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        Abrir mapa
-      </Link>
+    <main className="container mx-auto p-4 min-h-screen">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold">Rota Segura</h1>
+        <p className="text-muted-foreground">
+          Encontre pontos de apoio em situações de emergência.
+        </p>
+      </header>
+
+      <section className="grid gap-4">
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Mapa de Abrigos</h2>
+          <MapWithNoSSR />
+        </div>
+      </section>
     </main>
   );
 }
