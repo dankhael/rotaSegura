@@ -110,17 +110,10 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     const now = new Date();
 
-    await prisma.$executeRaw`
+    // RETURNING evita um SELECT extra e mantém a operação atômica.
+    const rows = await prisma.$queryRaw<RawSupportPoint[]>`
       INSERT INTO "support_points" (
-        id, 
-        name, 
-        type, 
-        capacity, 
-        latitude, 
-        longitude, 
-        location, 
-        "createdAt", 
-        "updatedAt"
+        id, name, type, capacity, latitude, longitude, location, "createdAt", "updatedAt"
       )
       VALUES (
         ${id},
@@ -133,23 +126,8 @@ export async function POST(request: NextRequest) {
         ${now},
         ${now}
       )
+      RETURNING id, name, type, capacity, latitude, longitude, "createdAt", "updatedAt"
     `;
-
-    // Recupera o ponto criado para retornar os dados completos
-    const rows = await prisma.$queryRaw<RawSupportPoint[]>`
-      SELECT
-        id, name, type, capacity,
-        latitude,
-        longitude,
-        "createdAt",
-        "updatedAt"
-      FROM "support_points"
-      WHERE id = ${id}
-    `;
-
-    if (rows.length === 0) {
-      return internalError("Falha ao recuperar ponto criado");
-    }
 
     return NextResponse.json(toSupportPoint(rows[0]), { status: 201 });
   } catch (err) {

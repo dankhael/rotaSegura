@@ -136,6 +136,30 @@ describe("PATCH /api/support-points/:id", () => {
     expect(rows[0].wkt).toContain("-8.2");
   });
 
+  it("recalcula location quando só latitude é enviada (mantém longitude existente)", async () => {
+    // Regressão: antes, enviar só uma das coordenadas atualizava a coluna escalar
+    // mas deixava a coluna geography apontando para o ponto antigo.
+    const created = await seedPoint({ latitude: -8.0, longitude: -34.8 });
+
+    const req = makeRequest(`http://localhost:3000/api/support-points/${created.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ latitude: -9.5 }),
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await PATCH(req, makeCtx(created.id));
+    expect(res.status).toBe(200);
+
+    const rows = await prisma.$queryRaw<{ wkt: string; lat: number; lng: number }[]>`
+      SELECT ST_AsText(location) AS wkt, latitude AS lat, longitude AS lng
+      FROM "support_points" WHERE id = ${created.id}
+    `;
+    expect(rows[0].lat).toBe(-9.5);
+    expect(rows[0].lng).toBe(-34.8);
+    expect(rows[0].wkt).toContain("-34.8");
+    expect(rows[0].wkt).toContain("-9.5");
+  });
+
   it("atualiza capacity para null (remoção do valor)", async () => {
     const created = await seedPoint({ capacity: 100 });
 

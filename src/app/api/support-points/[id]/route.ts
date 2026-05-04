@@ -91,37 +91,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { name, type, latitude, longitude, capacity } = parsed.data;
     const now = new Date();
 
-    // Corrigido: Atualização na tabela "support_points"
-    // A lógica de COALESCE mantém o valor atual se o parâmetro for nulo/undefined
-    const affectedRows = await prisma.$executeRaw`
+    // location é sempre recalculado a partir das coords efetivas (novas ou existentes)
+    // para evitar drift com as colunas latitude/longitude quando só uma delas é enviada.
+    const rows = await prisma.$queryRaw<RawSupportPoint[]>`
       UPDATE "support_points"
-      SET 
+      SET
         name = COALESCE(${name ?? null}, name),
         type = COALESCE(${type ?? null}, type),
-        capacity = CASE 
-          WHEN ${capacity === null} THEN NULL 
-          ELSE COALESCE(${capacity ?? null}, capacity) 
+        capacity = CASE
+          WHEN ${capacity === null} THEN NULL
+          ELSE COALESCE(${capacity ?? null}, capacity)
         END,
         latitude = COALESCE(${latitude ?? null}, latitude),
         longitude = COALESCE(${longitude ?? null}, longitude),
-        location = CASE 
-          WHEN ${longitude}::float8 IS NOT NULL AND ${latitude}::float8 IS NOT NULL 
-          THEN ST_SetSRID(ST_MakePoint(${longitude}::float8, ${latitude}::float8), 4326)::geography
-          ELSE location 
-        END,
+        location = ST_SetSRID(
+          ST_MakePoint(
+            COALESCE(${longitude ?? null}::float8, longitude),
+            COALESCE(${latitude ?? null}::float8, latitude)
+          ),
+          4326
+        )::geography,
         "updatedAt" = ${now}
       WHERE id = ${id}
+      RETURNING id, name, type, capacity, latitude, longitude, "createdAt", "updatedAt"
     `;
 
-    if (affectedRows === 0) {
+    if (rows.length === 0) {
       return notFound("Ponto de apoio não encontrado");
     }
-
-    // Busca o registro atualizado para retorno
-    const rows = await prisma.$queryRaw<RawSupportPoint[]>`
-      SELECT id, name, type, capacity, latitude, longitude, "createdAt", "updatedAt"
-      FROM "support_points" WHERE id = ${id}
-    `;
 
     return NextResponse.json(toSupportPoint(rows[0]));
   } catch (err) {
