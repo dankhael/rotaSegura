@@ -1,42 +1,11 @@
-// src/app/api/support-points/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { prisma } from "@/lib/db";
 import { badRequest, fromZodError, internalError } from "@/lib/api-response";
+import { type RawSupportPoint, toSupportPoint } from "@/lib/support-points/serialize";
 import { createSupportPointSchema, paginationSchema } from "@/lib/validations/support-point";
 import type { SupportPoint, PaginatedResponse } from "@/types/support-point";
-
-// Tipo interno que reflete o resultado do $queryRaw com colunas físicas
-type RawSupportPoint = {
-  id: string;
-  name: string;
-  type: string;
-  capacity: number | null;
-  latitude: number;
-  longitude: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-/**
- * Converte a linha bruta do banco para o formato de contrato da API (SupportPoint)
- */
-function toSupportPoint(row: RawSupportPoint): SupportPoint {
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type as SupportPoint["type"],
-    capacity: row.capacity,
-    latitude: Number(row.latitude),
-    longitude: Number(row.longitude),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-// ─── GET /api/support-points ──────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,14 +27,8 @@ export async function GET(request: NextRequest) {
     `;
     const total = Number(countResult[0].total);
 
-    // Busca utilizando as colunas físicas para maior performance
     const rows = await prisma.$queryRaw<RawSupportPoint[]>`
-      SELECT
-        id, name, type, capacity,
-        latitude,
-        longitude,
-        "createdAt",
-        "updatedAt"
+      SELECT id, name, type, capacity, latitude, longitude, "createdAt", "updatedAt"
       FROM "support_points"
       ORDER BY "createdAt" DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -87,8 +50,6 @@ export async function GET(request: NextRequest) {
     return internalError();
   }
 }
-
-// ─── POST /api/support-points ─────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {

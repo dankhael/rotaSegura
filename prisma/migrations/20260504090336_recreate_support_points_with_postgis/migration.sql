@@ -1,8 +1,9 @@
 /*
-  Warnings:
-
-  - You are about to drop the `SupportPoint` table. If the table is not empty, all the data it contains will be lost.
-
+  DESTRUTIVA: dropa a tabela "SupportPoint" criada pela migration inicial e
+  recria como "support_points" com colunas latitude/longitude e índice GIST
+  sobre a coluna geography. Qualquer dado existente em "SupportPoint" será
+  PERDIDO ao aplicar esta migration. Seguro neste branch porque a tabela
+  ainda não recebeu dados em produção.
 */
 -- DropTable
 DROP TABLE "SupportPoint";

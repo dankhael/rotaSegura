@@ -1,56 +1,17 @@
-// src/app/api/support-points/[id]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { badRequest, fromZodError, internalError, notFound } from "@/lib/api-response";
+import { type RawSupportPoint, toSupportPoint } from "@/lib/support-points/serialize";
 import { updateSupportPointSchema } from "@/lib/validations/support-point";
-import type { SupportPoint } from "@/types/support-point";
-
-// Tipo interno para mapear o retorno do SQL bruto
-type RawSupportPoint = {
-  id: string;
-  name: string;
-  type: string;
-  capacity: number | null;
-  latitude: number;
-  longitude: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-/**
- * Converte o registro do banco para o contrato da API.
- * Adicionado um check de segurança para evitar erro de 'properties of undefined'.
- */
-function toSupportPoint(row: RawSupportPoint): SupportPoint {
-  if (!row) return {} as SupportPoint;
-
-  return {
-    id: row.id,
-    name: row.name,
-    type: row.type as SupportPoint["type"],
-    capacity: row.capacity,
-    latitude: Number(row.latitude),
-    longitude: Number(row.longitude),
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
-// ─── GET /api/support-points/:id ──────────────────────────────────────────────
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
-    // Corrigido: Nome da tabela para "support_points"
     const rows = await prisma.$queryRaw<RawSupportPoint[]>`
-      SELECT 
-        id, name, type, capacity, 
-        latitude, longitude, 
-        "createdAt", "updatedAt"
-      FROM "support_points" 
+      SELECT id, name, type, capacity, latitude, longitude, "createdAt", "updatedAt"
+      FROM "support_points"
       WHERE id = ${id}
     `;
 
@@ -64,8 +25,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return internalError();
   }
 }
-
-// ─── PATCH /api/support-points/:id ─────────────────────────────────────────────
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -83,7 +42,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return fromZodError(parsed.error);
     }
 
-    // Validação: Exige ao menos um campo para atualização
     if (Object.keys(parsed.data).length === 0) {
       return badRequest("Nenhum campo válido para atualizar");
     }
@@ -127,8 +85,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-// ─── DELETE /api/support-points/:id ────────────────────────────────────────────
-
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -136,12 +92,10 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Corrigido: Deleção na tabela "support_points"
     const result = await prisma.$executeRaw`
       DELETE FROM "support_points" WHERE id = ${id}
     `;
 
-    // O $executeRaw retorna o número de linhas afetadas
     if (result === 0) {
       return notFound("Ponto de apoio não encontrado");
     }
