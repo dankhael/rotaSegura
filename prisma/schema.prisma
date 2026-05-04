@@ -12,11 +12,14 @@ datasource db {
 model SupportPoint {
   id        String   @id @default(cuid())
   name      String
-  type      String // "shelter" | "medical" | "supply" — promote to enum later
+  type      String 
   capacity  Int?
+  latitude  Float    // Adicione este campo[cite: 1, 4, 5]
+  longitude Float    // Adicione este campo[cite: 1, 4, 5]
   location  Unsupported("geography(Point, 4326)")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([location], type: Gist)
+  @@map("support_points") // Mapeia para snake_case no banco
 }

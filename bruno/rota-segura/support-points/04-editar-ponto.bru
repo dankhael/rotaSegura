@@ -1,0 +1,28 @@
+meta {
+  name: Editar ponto de apoio
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/support-points/{{supportPointId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "Abrigo Comunitário Central — Atualizado",
+    "capacity": 350
+  }
+}
+
+tests {
+  test("deve retornar 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("deve refletir os campos atualizados", function() {
+    expect(res.body.name).to.equal("Abrigo Comunitário Central — Atualizado");
+    expect(res.body.capacity).to.equal(350);
+  });
+}
