@@ -11,8 +11,22 @@ jobs:
     name: lint + typecheck + test + build
     runs-on: ubuntu-latest
     env:
-      # Dummy URL for build-time env validation — no real DB needed in CI
       DATABASE_URL: postgresql://rotasegura:rotasegura@localhost:5432/rotasegura?schema=public
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: rotasegura
+          POSTGRES_PASSWORD: rotasegura
+          POSTGRES_DB: rotasegura
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -26,6 +40,9 @@ jobs:
 
       - name: Install dependencies (runs prisma generate via postinstall)
         run: npm ci
+
+      - name: Run migrations
+        run: npx prisma migrate deploy
 
       - name: Lint
         run: npm run lint
