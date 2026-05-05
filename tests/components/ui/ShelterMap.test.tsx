@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 vi.mock("leaflet/dist/leaflet.css", () => ({}));
 
 vi.mock("leaflet", () => ({
-  default: { icon: vi.fn(() => ({})) },
+  default: { icon: vi.fn(() => ({})), divIcon: vi.fn(() => ({})) },
 }));
 
 vi.mock("react-leaflet", () => ({
@@ -27,8 +27,8 @@ describe("ShelterMap", () => {
     expect(screen.getByTestId("tile-layer")).toBeInTheDocument();
   });
 
-  it("does not render a marker before the user clicks", () => {
-    const { container } = render(<ShelterMap />);
-    expect(container.querySelector("[data-testid='map-container']")?.textContent).toBe("");
+  it("does not render the click-to-place marker before the user clicks", () => {
+    render(<ShelterMap />);
+    expect(screen.queryByText(/Novo ponto selecionado/i)).not.toBeInTheDocument();
   });
 });

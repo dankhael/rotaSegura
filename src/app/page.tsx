@@ -1,34 +1,22 @@
-"use client";
-
-import dynamic from "next/dynamic";
-
-// Leaflet touches `window` on import, so SSR must be disabled to avoid
-// runtime errors during the server render pass.
-const ShelterMap = dynamic(() => import("@/components/ui/ShelterMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-[500px] w-full bg-gray-100 animate-pulse flex items-center justify-center">
-      Carregando mapa...
-    </div>
-  ),
-});
+import { TopBar } from "@/components/home/top-bar";
+import { AlertBanner } from "@/components/home/alert-banner";
+import { Hero } from "@/components/home/hero";
+import { MapCard } from "@/components/home/map-card";
+import { SosCard } from "@/components/home/sos-card";
 
 export default function Home() {
   return (
-    <main className="container mx-auto p-4 min-h-screen">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold">Rota Segura</h1>
-        <p className="text-muted-foreground">
-          Encontre pontos de apoio em situações de emergência.
-        </p>
-      </header>
+    <main className="mx-auto px-4 pb-10 pt-5 sm:px-6" style={{ maxWidth: 1280 }}>
+      <TopBar />
+      <AlertBanner />
+      <Hero />
 
-      <section className="grid gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Mapa de Abrigos</h2>
-          <ShelterMap />
-        </div>
-      </section>
+      <div className="mt-4 grid gap-4 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <MapCard />
+        <aside className="flex flex-col gap-3">
+          <SosCard />
+        </aside>
+      </div>
     </main>
   );
 }
