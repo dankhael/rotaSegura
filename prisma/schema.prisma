@@ -12,11 +12,16 @@ datasource db {
 model SupportPoint {
   id        String   @id @default(cuid())
   name      String
-  type      String // "shelter" | "medical" | "supply" — promote to enum later
+  // type validado em camada de aplicação: SHELTER | MEDICAL | SUPPLY | OTHER.
+  // Promover a enum Postgres ou CHECK constraint quando o conjunto estabilizar.
+  type      String
   capacity  Int?
+  latitude  Float
+  longitude Float
   location  Unsupported("geography(Point, 4326)")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([location], type: Gist)
+  @@map("support_points")
 }
