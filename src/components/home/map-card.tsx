@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
 import { POINT_COUNTS, type MockPointKind } from "./map-mock-points";
+import { useGeolocation } from "@/lib/hooks/use-geolocation";
 
 const ShelterMap = dynamic(() => import("@/components/ui/ShelterMap"), {
   ssr: false,
@@ -44,6 +45,23 @@ const FILTERS: { id: Filter; label: string; swatch?: string; count: number }[] =
 export function MapCard() {
   const [filter, setFilter] = useState<Filter>("all");
   const total = POINT_COUNTS.all;
+  const { coords, source, status, retry } = useGeolocation();
+  const fallbackVisible = status === "denied" || status === "unavailable";
+  const locating = status === "prompting";
+  const [centerToken, setCenterToken] = useState(0);
+
+  const userPosition = useMemo(
+    () => (coords ? { lat: coords.lat, lng: coords.lng } : null),
+    [coords],
+  );
+
+  // The button always asks for a fresh fix and asks the map to recenter.
+  // RecenterOnRequest holds the request until coords appear, so a click
+  // before the chain finishes still pans the map exactly once.
+  const handleLocate = useCallback(() => {
+    retry();
+    setCenterToken((t) => t + 1);
+  }, [retry]);
 
   return (
     <section
@@ -88,12 +106,43 @@ export function MapCard() {
         </div>
       </div>
 
+      {fallbackVisible && <GeolocationNotice denied={status === "denied"} />}
+
       <div className="relative" style={{ height: 540, background: "var(--surface-2)" }}>
-        <ShelterMap filter={filter} />
+        <ShelterMap
+          filter={filter}
+          userPosition={userPosition}
+          userAccuracy={coords?.accuracy ?? null}
+          userSource={source}
+          centerOnUserToken={centerToken}
+        />
         <Legend />
-        <MapControls />
+        <MapControls onLocate={handleLocate} locating={locating} />
       </div>
     </section>
+  );
+}
+
+function GeolocationNotice({ denied }: { denied: boolean }) {
+  return (
+    <div
+      role="status"
+      style={{
+        padding: "10px 18px",
+        borderBottom: "1px solid var(--line-soft)",
+        background: "var(--warn-soft)",
+        color: "var(--warn-ink)",
+        fontSize: 12,
+        lineHeight: 1.45,
+      }}
+    >
+      <strong style={{ fontWeight: 600 }}>
+        {denied ? "Localização desativada." : "Localização indisponível."}
+      </strong>{" "}
+      Mostrando o mapa centralizado em Recife. Algumas funções, como pontos próximos a você,
+      dependem da sua localização — habilite-a nas permissões do navegador para uma experiência
+      completa.
+    </div>
   );
 }
 
@@ -206,7 +255,7 @@ function Legend() {
   );
 }
 
-function MapControls() {
+function MapControls({ onLocate, locating }: { onLocate: () => void; locating: boolean }) {
   const ctrlStyle = {
     width: 40,
     height: 40,
@@ -224,7 +273,13 @@ function MapControls() {
       className="absolute pointer-events-auto flex flex-col gap-2"
       style={{ top: 14, right: 14, zIndex: 500 }}
     >
-      <button type="button" aria-label="Minha localização" style={ctrlStyle}>
+      <button
+        type="button"
+        aria-label="Minha localização"
+        onClick={onLocate}
+        disabled={locating}
+        style={{ ...ctrlStyle, opacity: locating ? 0.6 : 1, cursor: "pointer" }}
+      >
         <svg
           width="18"
           height="18"

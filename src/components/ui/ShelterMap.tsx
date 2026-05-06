@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -54,12 +54,57 @@ const STATUS_STYLE: Record<MockPointStatus, { bg: string; fg: string }> = {
 
 export type LatLng = { lat: number; lng: number };
 
+export type UserMarkerSource = "device" | "ip";
+
 type ShelterMapProps = {
   center?: [number, number];
   zoom?: number;
   onSelect?: (point: LatLng) => void;
   filter?: "all" | MockPointKind;
+  userPosition?: LatLng | null;
+  userAccuracy?: number | null;
+  userSource?: UserMarkerSource | null;
+  /**
+   * Increment to request a one-shot pan to the user's location. The map only
+   * recenters when this value changes, never automatically as `userPosition`
+   * updates. Pending requests fire as soon as a position becomes available.
+   */
+  centerOnUserToken?: number;
+  recenterZoom?: number;
 };
+
+/**
+ * One-shot recenter on demand. Watches a token rather than the position
+ * itself, so the map never moves on its own as new GPS fixes arrive.
+ * If the user clicks the locate button before a fix is ready, the request
+ * is held until coords appear and then honored exactly once.
+ */
+function RecenterOnRequest({
+  position,
+  token,
+  zoom,
+}: {
+  position: LatLng | null;
+  token: number;
+  zoom: number;
+}) {
+  const map = useMap();
+  const lastTokenRef = useRef(token);
+  const pendingRef = useRef(false);
+
+  useEffect(() => {
+    if (token !== lastTokenRef.current) {
+      lastTokenRef.current = token;
+      pendingRef.current = true;
+    }
+    if (pendingRef.current && position) {
+      map.setView([position.lat, position.lng], Math.max(map.getZoom(), zoom));
+      pendingRef.current = false;
+    }
+  }, [token, position, map, zoom]);
+
+  return null;
+}
 
 /**
  * Click-to-place marker. Tracks the latest user-selected point so the parent
@@ -189,6 +234,11 @@ export default function ShelterMap({
   zoom = DEFAULT_ZOOM,
   onSelect,
   filter = "all",
+  userPosition = null,
+  userAccuracy = null,
+  userSource = null,
+  centerOnUserToken = 0,
+  recenterZoom = 14,
 }: ShelterMapProps) {
   const visiblePoints =
     filter === "all" ? MOCK_POINTS : MOCK_POINTS.filter((p) => p.kind === filter);
@@ -205,28 +255,37 @@ export default function ShelterMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        <Marker position={center} icon={makePinIcon("user")}>
-          <Popup>
-            <div style={{ padding: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Você está aqui</div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--ink-3)",
-                  margin: 0,
-                  lineHeight: 1.4,
-                }}
-              >
-                Boa Viagem · precisão ±15m
+        {userPosition && (
+          <Marker position={[userPosition.lat, userPosition.lng]} icon={makePinIcon("user")}>
+            <Popup>
+              <div style={{ padding: 14 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Você está aqui</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--ink-3)",
+                    margin: 0,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {userPositionLabel(userSource, userAccuracy)}
+                </div>
               </div>
-            </div>
-          </Popup>
-        </Marker>
+            </Popup>
+          </Marker>
+        )}
         {visiblePoints.map((p) => (
           <MockPointMarker key={p.name} point={p} />
         ))}
         <SelectedPointMarker onChange={onSelect} />
+        <RecenterOnRequest position={userPosition} token={centerOnUserToken} zoom={recenterZoom} />
       </MapContainer>
     </div>
   );
+}
+
+function userPositionLabel(source: UserMarkerSource | null, accuracy: number | null): string {
+  if (source === "ip") return "Localização aproximada via IP";
+  if (accuracy != null) return `Precisão ±${Math.round(accuracy)}m`;
+  return "Posição atual";
 }
