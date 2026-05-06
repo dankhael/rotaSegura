@@ -16,6 +16,7 @@ vi.mock("react-leaflet", () => ({
   Marker: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Popup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   useMapEvents: () => null,
+  useMap: () => ({ setView: vi.fn(), getZoom: () => 13 }),
 }));
 
 import ShelterMap from "@/components/ui/ShelterMap";
