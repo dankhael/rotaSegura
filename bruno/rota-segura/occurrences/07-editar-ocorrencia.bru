@@ -1,0 +1,26 @@
+meta {
+  name: Editar ocorrência
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/api/occurrences/{{occurrenceId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FIRE"
+  }
+}
+
+tests {
+  test("deve retornar 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("deve refletir o campo atualizado", function() {
+    expect(res.body.type).to.equal("FIRE");
+  });
+}

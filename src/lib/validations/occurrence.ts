@@ -30,6 +30,10 @@ export const createOccurrenceSchema = z.object({
 
 export type CreateOccurrenceInput = z.infer<typeof createOccurrenceSchema>;
 
+export const updateOccurrenceSchema = createOccurrenceSchema.partial();
+
+export type UpdateOccurrenceInput = z.infer<typeof updateOccurrenceSchema>;
+
 export const paginationSchema = z.object({
   page: z.coerce
     .number({ invalid_type_error: "page deve ser um número" })

@@ -1,0 +1,17 @@
+meta {
+  name: Remover ocorrência
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/api/occurrences/{{occurrenceId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("deve retornar 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}
