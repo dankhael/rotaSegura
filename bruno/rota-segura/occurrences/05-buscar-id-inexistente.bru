@@ -1,0 +1,20 @@
+meta {
+  name: Buscar ocorrência inexistente (404)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/occurrences/id-que-nao-existe
+  body: none
+  auth: none
+}
+
+tests {
+  test("deve retornar 404", function() {
+    expect(res.status).to.equal(404);
+  });
+  test("deve ter mensagem de erro", function() {
+    expect(res.body.error).to.be.a("string");
+  });
+}

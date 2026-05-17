@@ -9,6 +9,20 @@ datasource db {
   extensions = [postgis, postgis_topology, postgis_tiger_geocoder, fuzzystrmatch]
 }
 
+model Occurrence {
+  id         String   @id @default(cuid())
+  // type validado em camada de aplicação: ACCIDENT | ROBBERY | FLOOD | OBSTRUCTION | FIRE | OTHER.
+  type       String
+  latitude   Float
+  longitude  Float
+  location   Unsupported("geography(Point, 4326)")
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([location], type: Gist)
+  @@map("occurrences")
+}
+
 model SupportPoint {
   id        String   @id @default(cuid())
   name      String

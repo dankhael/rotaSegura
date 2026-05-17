@@ -1,0 +1,20 @@
+meta {
+  name: Buscar ocorrência por ID
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/occurrences/{{occurrenceId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("deve retornar 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("deve retornar a ocorrência correta", function() {
+    expect(res.body.id).to.equal(bru.getVar("occurrenceId"));
+  });
+}

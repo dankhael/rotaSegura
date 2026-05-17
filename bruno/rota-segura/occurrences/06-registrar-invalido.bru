@@ -1,0 +1,29 @@
+meta {
+  name: Registrar ocorrência (payload inválido — 400)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/occurrences
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "TIPO_ERRADO",
+    "latitude": 999,
+    "longitude": -34.88
+  }
+}
+
+tests {
+  test("deve retornar 400", function() {
+    expect(res.status).to.equal(400);
+  });
+  test("deve ter detalhes dos erros de validação", function() {
+    expect(res.body.error).to.equal("Payload inválido");
+    expect(res.body.details).to.be.an("array").with.length.greaterThan(0);
+  });
+}
