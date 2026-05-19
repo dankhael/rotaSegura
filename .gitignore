@@ -49,5 +49,6 @@ next-env.d.ts
 /setup-prompt.md
 /CLAUDE.md
 .vercel
+.claude/
 
 certificates

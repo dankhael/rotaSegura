@@ -9,6 +9,21 @@ datasource db {
   extensions = [postgis, postgis_topology, postgis_tiger_geocoder, fuzzystrmatch]
 }
 
+model Occurrence {
+  id         String   @id @default(cuid())
+  // type validado em camada de aplicação: FLOOD | FIRE | LANDSLIDE | ACCIDENT | OBSTRUCTION | OTHER.
+  // Promover a enum Postgres ou CHECK constraint quando o conjunto estabilizar.
+  type       String
+  latitude   Float
+  longitude  Float
+  location   Unsupported("geography(Point, 4326)")
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([location], type: Gist)
+  @@map("occurrences")
+}
+
 model SupportPoint {
   id        String   @id @default(cuid())
   name      String
