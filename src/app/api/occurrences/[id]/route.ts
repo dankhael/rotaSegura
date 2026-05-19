@@ -47,6 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { type, latitude, longitude, occurredAt } = parsed.data;
+    const updateLocation = latitude !== undefined || longitude !== undefined;
 
     const rows = await prisma.$queryRaw<RawOccurrence[]>`
       UPDATE "occurrences"
@@ -54,13 +55,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         type = COALESCE(${type ?? null}, type),
         latitude = COALESCE(${latitude ?? null}, latitude),
         longitude = COALESCE(${longitude ?? null}, longitude),
-        location = ST_SetSRID(
-          ST_MakePoint(
-            COALESCE(${longitude ?? null}::float8, longitude),
-            COALESCE(${latitude ?? null}::float8, latitude)
-          ),
-          4326
-        )::geography,
+        location = CASE
+          WHEN ${updateLocation}
+          THEN ST_SetSRID(
+            ST_MakePoint(
+              COALESCE(${longitude ?? null}::float8, longitude),
+              COALESCE(${latitude ?? null}::float8, latitude)
+            ),
+            4326
+          )::geography
+          ELSE location
+        END,
         "occurredAt" = COALESCE(${occurredAt ?? null}, "occurredAt")
       WHERE id = ${id}
       RETURNING id, type, latitude, longitude, "occurredAt", "createdAt"

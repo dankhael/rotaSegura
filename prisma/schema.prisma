@@ -11,7 +11,8 @@ datasource db {
 
 model Occurrence {
   id         String   @id @default(cuid())
-  // type validado em camada de aplicação: ACCIDENT | ROBBERY | FLOOD | OBSTRUCTION | FIRE | OTHER.
+  // type validado em camada de aplicação: FLOOD | FIRE | LANDSLIDE | ACCIDENT | OBSTRUCTION | OTHER.
+  // Promover a enum Postgres ou CHECK constraint quando o conjunto estabilizar.
   type       String
   latitude   Float
   longitude  Float
