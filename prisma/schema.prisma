@@ -9,19 +9,56 @@ datasource db {
   extensions = [postgis, postgis_topology, postgis_tiger_geocoder, fuzzystrmatch]
 }
 
+enum OccurrenceStatus {
+  PENDING
+  CONFIRMED
+}
+
+// Agregado de relatos próximos (US06).
+// Estado derivado: contadores e centróide são recalculados a cada novo report.
 model Occurrence {
-  id         String   @id @default(cuid())
+  id                String           @id @default(cuid())
   // type validado em camada de aplicação: FLOOD | FIRE | LANDSLIDE | ACCIDENT | OBSTRUCTION | OTHER.
-  // Promover a enum Postgres ou CHECK constraint quando o conjunto estabilizar.
-  type       String
-  latitude   Float
-  longitude  Float
-  location   Unsupported("geography(Point, 4326)")
-  occurredAt DateTime @default(now())
-  createdAt  DateTime @default(now())
+  type              String
+  status            OccurrenceStatus @default(PENDING)
+  centroidLatitude  Float
+  centroidLongitude Float
+  centroid          Unsupported("geography(Point, 4326)")
+  reportCount       Int              @default(0)
+  uniqueDeviceCount Int              @default(0)
+  firstReportedAt   DateTime
+  lastReportedAt    DateTime
+  confirmedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now())
+  reports           Report[]
+
+  @@index([centroid], type: Gist)
+  @@index([type, lastReportedAt])
+  @@index([status])
+  @@map("occurrences")
+}
+
+// Relato individual (evento bruto). Sempre pertence a uma Occurrence (FK NOT NULL).
+// Idempotência por (occurrenceId, deviceId) é garantida por unique parcial em SQL puro
+// (não expressável em @@unique do Prisma); ver migration 20260519180000.
+model Report {
+  id           String     @id @default(cuid())
+  type         String
+  latitude     Float
+  longitude    Float
+  location     Unsupported("geography(Point, 4326)")
+  occurredAt   DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+  deviceId     String?
+  occurrenceId String
+  occurrence   Occurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
 
   @@index([location], type: Gist)
-  @@map("occurrences")
+  @@index([occurrenceId])
+  @@index([deviceId])
+  @@index([type, occurredAt(sort: Desc)])
+  @@map("reports")
 }
 
 model SupportPoint {

@@ -1,0 +1,25 @@
+meta {
+  name: Listar relatos (paginação + filtros)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/reports?limit=10
+  body: none
+  auth: none
+}
+
+tests {
+  test("retorna 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("estrutura data + meta", function() {
+    expect(res.body.data).to.be.an("array");
+    expect(res.body.meta).to.have.property("total");
+    expect(res.body.meta).to.have.property("totalPages");
+  });
+  test("inclui ao menos os relatos criados nesta sequência", function() {
+    expect(res.body.meta.total).to.be.at.least(5);
+  });
+}

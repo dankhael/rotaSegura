@@ -1,5 +1,5 @@
 meta {
-  name: Buscar ocorrência por ID
+  name: Buscar ocorrência por ID (agregado)
   type: http
   seq: 4
 }
@@ -11,10 +11,16 @@ get {
 }
 
 tests {
-  test("deve retornar 200", function() {
+  test("retorna 200", function() {
     expect(res.status).to.equal(200);
   });
-  test("deve retornar a ocorrência correta", function() {
+  test("retorna a ocorrência correta com campos do agregado", function() {
     expect(res.body.id).to.equal(bru.getVar("occurrenceId"));
+    expect(res.body).to.have.property("status");
+    expect(res.body).to.have.property("reportCount");
+    expect(res.body).to.have.property("uniqueDeviceCount");
+    expect(res.body).to.have.property("centroidLatitude");
+    expect(res.body).to.have.property("firstReportedAt");
+    expect(res.body).to.have.property("lastReportedAt");
   });
 }

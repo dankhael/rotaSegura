@@ -1,0 +1,17 @@
+meta {
+  name: Remover relato (recomputa agregados)
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/api/reports/{{reportId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("retorna 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

@@ -1,0 +1,32 @@
+meta {
+  name: Validação — type inválido + lat fora de range (400)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "TERREMOTO",
+    "latitude": 999,
+    "longitude": -34.88,
+    "deviceId": "{{deviceId1}}"
+  }
+}
+
+tests {
+  test("retorna 400", function() {
+    expect(res.status).to.equal(400);
+  });
+  test("lista os campos com erro", function() {
+    expect(res.body.details).to.be.an("array").with.length.greaterThan(0);
+    const fields = res.body.details.map((d) => d.field);
+    expect(fields).to.include("type");
+    expect(fields).to.include("latitude");
+  });
+}

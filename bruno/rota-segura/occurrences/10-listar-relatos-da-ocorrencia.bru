@@ -1,0 +1,22 @@
+meta {
+  name: Listar relatos da ocorrência (rastreabilidade — AC8)
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/occurrences/{{occurrenceId}}/reports
+  body: none
+  auth: none
+}
+
+tests {
+  test("retorna 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("todos os relatos têm a mesma occurrenceId", function() {
+    for (const r of res.body.data) {
+      expect(r.occurrenceId).to.equal(bru.getVar("occurrenceId"));
+    }
+  });
+}

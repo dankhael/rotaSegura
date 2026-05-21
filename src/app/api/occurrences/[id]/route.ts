@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
-import { badRequest, fromZodError, internalError, notFound } from "@/lib/api-response";
+import { internalError, notFound } from "@/lib/api-response";
 import { type RawOccurrence, toOccurrence } from "@/lib/occurrences/serialize";
-import { updateOccurrenceSchema } from "@/lib/validations/occurrence";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
     const rows = await prisma.$queryRaw<RawOccurrence[]>`
-      SELECT id, type, latitude, longitude, "occurredAt", "createdAt"
+      SELECT id, type, status,
+             "centroidLatitude", "centroidLongitude",
+             "reportCount", "uniqueDeviceCount",
+             "firstReportedAt", "lastReportedAt", "confirmedAt",
+             "createdAt", "updatedAt"
       FROM "occurrences"
       WHERE id = ${id}
     `;
@@ -26,62 +29,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return badRequest("Body deve ser um JSON válido");
-    }
-
-    const parsed = updateOccurrenceSchema.safeParse(body);
-    if (!parsed.success) {
-      return fromZodError(parsed.error);
-    }
-
-    if (Object.keys(parsed.data).length === 0) {
-      return badRequest("Nenhum campo válido para atualizar");
-    }
-
-    const { type, latitude, longitude, occurredAt } = parsed.data;
-    const updateLocation = latitude !== undefined || longitude !== undefined;
-
-    const rows = await prisma.$queryRaw<RawOccurrence[]>`
-      UPDATE "occurrences"
-      SET
-        type = COALESCE(${type ?? null}, type),
-        latitude = COALESCE(${latitude ?? null}, latitude),
-        longitude = COALESCE(${longitude ?? null}, longitude),
-        location = CASE
-          WHEN ${updateLocation}
-          THEN ST_SetSRID(
-            ST_MakePoint(
-              COALESCE(${longitude ?? null}::float8, longitude),
-              COALESCE(${latitude ?? null}::float8, latitude)
-            ),
-            4326
-          )::geography
-          ELSE location
-        END,
-        "occurredAt" = COALESCE(${occurredAt ?? null}, "occurredAt")
-      WHERE id = ${id}
-      RETURNING id, type, latitude, longitude, "occurredAt", "createdAt"
-    `;
-
-    if (rows.length === 0) {
-      return notFound("Ocorrência não encontrada");
-    }
-
-    return NextResponse.json(toOccurrence(rows[0]));
-  } catch (err) {
-    console.error("[PATCH /api/occurrences/:id]", err);
-    return internalError();
-  }
-}
-
+/**
+ * Remove a ocorrência e seus relatos (cascade via FK). Endpoint admin — sem auth
+ * nesta task. PATCH foi removido: ocorrência é estado derivado dos reports.
+ */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

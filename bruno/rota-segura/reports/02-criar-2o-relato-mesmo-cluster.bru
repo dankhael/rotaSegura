@@ -1,0 +1,36 @@
+meta {
+  name: Criar 2º relato (agrupa no mesmo cluster)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FLOOD",
+    "latitude": -8.058000,
+    "longitude": -34.883000,
+    "deviceId": "{{deviceId2}}"
+  }
+}
+
+tests {
+  test("retorna 201", function() {
+    expect(res.status).to.equal(201);
+  });
+  test("agrupa na mesma occurrence do relato anterior (AC1)", function() {
+    expect(res.body.occurrence.id).to.equal(bru.getVar("occurrenceId"));
+    expect(res.body.clustering.created).to.equal(false);
+  });
+  test("ainda PENDING; uniqueDeviceCount=2 (não atingiu threshold=3)", function() {
+    expect(res.body.occurrence.status).to.equal("PENDING");
+    expect(res.body.occurrence.reportCount).to.equal(2);
+    expect(res.body.occurrence.uniqueDeviceCount).to.equal(2);
+    expect(res.body.clustering.promoted).to.equal(false);
+  });
+}
