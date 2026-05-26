@@ -1,0 +1,27 @@
+meta {
+  name: Login credencial inválida
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "admin@rotasegura.local",
+    "password": "senha-errada"
+  }
+}
+
+tests {
+  test("deve retornar 401", function() {
+    expect(res.status).to.equal(401);
+  });
+  test("mensagem deve ser genérica", function() {
+    expect(res.body.error).to.equal("Credenciais inválidas");
+  });
+}

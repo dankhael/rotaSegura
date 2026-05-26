@@ -9,6 +9,18 @@ datasource db {
   extensions = [postgis, postgis_topology, postgis_tiger_geocoder, fuzzystrmatch]
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  // role validado em camada de aplicação: ADMIN | USER.
+  role         String   @default("USER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
 model Occurrence {
   id         String   @id @default(cuid())
   // type validado em camada de aplicação: FLOOD | FIRE | LANDSLIDE | ACCIDENT | OBSTRUCTION | OTHER.

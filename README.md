@@ -44,7 +44,10 @@ npm run db:up
 # 5. Aplique a migration inicial (cria extensões PostGIS + tabela SupportPoint)
 npm run db:migrate
 
-# 6. Rode o app em modo dev
+# 6. (Opcional) Crie o admin inicial. Lê SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD do .env.
+npm run db:seed
+
+# 7. Rode o app em modo dev
 npm run dev
 ```
 
@@ -68,6 +71,7 @@ A aplicação fica disponível em `http://localhost:3000`. Healthcheck em `http:
 | `npm run db:down`    | Derruba os containers (volume preservado)                      |
 | `npm run db:migrate` | `prisma migrate dev` (gera + aplica migrations)                |
 | `npm run db:reset`   | Reseta o banco (apaga dados, reaplica migrations) — **só dev** |
+| `npm run db:seed`    | Cria/atualiza o admin a partir de `SEED_ADMIN_*` no `.env`     |
 | `npm run db:studio`  | Abre Prisma Studio para inspecionar dados                      |
 
 ## Estrutura de pastas
@@ -150,12 +154,58 @@ Checklist mínimo do PR:
 
 Veja [.env.example](.env.example) para a lista canônica.
 
-| Variável       | Obrigatória | Descrição                                     |
-| -------------- | ----------- | --------------------------------------------- |
-| `DATABASE_URL` | sim         | URL Postgres com extensão PostGIS habilitada  |
-| `NODE_ENV`     | não         | `development` (default), `test`, `production` |
+| Variável              | Obrigatória | Descrição                                                             |
+| --------------------- | ----------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`        | sim         | URL Postgres com extensão PostGIS habilitada                          |
+| `NODE_ENV`            | não         | `development` (default), `test`, `production`                         |
+| `JWT_SECRET`          | sim         | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32` |
+| `JWT_EXPIRES_IN`      | não         | Tempo de vida do token (`1h` default; aceita formato vercel/ms)       |
+| `SEED_ADMIN_EMAIL`    | não         | E-mail do admin criado por `npm run db:seed`                          |
+| `SEED_ADMIN_PASSWORD` | não         | Senha do admin do seed (será hasheada com bcrypt antes de gravar)     |
 
 A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando.
+
+## API: Autenticação
+
+### `POST /api/auth/login`
+
+Autentica um administrador previamente provisionado e devolve um JWT (HS256, expiração padrão de 1h).
+
+**Request:**
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@rotasegura.local",
+  "password": "ChangeMe!123"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": { "id": "ck...", "email": "admin@rotasegura.local", "role": "ADMIN" }
+}
+```
+
+O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Verifique-o nas rotas protegidas com `verifyAuthToken` de [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts).
+
+**Erros:**
+
+| Status | Quando                                                                          |
+| ------ | ------------------------------------------------------------------------------- |
+| 400    | Payload inválido (campo faltando, email malformado, JSON inválido)              |
+| 401    | E-mail inexistente **ou** senha incorreta (mensagem genérica em ambos os casos) |
+| 403    | Credenciais válidas, mas `role !== "ADMIN"`                                     |
+| 429    | Mais de 5 tentativas no mesmo IP em 1 minuto (cabeçalho `Retry-After` enviado)  |
+
+**Provisionar o admin:** `npm run db:seed` lê `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do `.env`, hasheia a senha com bcrypt (custo 12) e faz `upsert`.
+
+> ⚠️ O rate limiter atual é **in-memory** (Map no processo). Funciona em dev e em deploys single-instance, mas não compartilha estado entre lambdas serverless. Para Vercel/multi-instância, migrar para Upstash Redis (`@upstash/ratelimit`).
 
 ## Próximas sprints
 

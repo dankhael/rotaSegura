@@ -3,6 +3,10 @@ import { z } from "zod";
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  JWT_SECRET: z
+    .string()
+    .min(32, "JWT_SECRET deve ter no mínimo 32 caracteres (use openssl rand -base64 32)"),
+  JWT_EXPIRES_IN: z.string().default("1h"),
 });
 
 const parsed = envSchema.safeParse(process.env);
