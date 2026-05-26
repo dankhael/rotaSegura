@@ -1,12 +1,16 @@
 export async function getAddressFromCoords(lat: number, lng: number) {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+    const response = await fetch(
+      `/api/geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`,
     );
 
-    const data = await res.json();
+    if (!response.ok) {
+      return "Endereço não disponível";
+    }
 
-    return data?.display_name ?? "Endereço não encontrado";
+    const data = await response.json();
+
+    return data.address ?? "Endereço não encontrado";
   } catch {
     return "Endereço não disponível";
   }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Modal } from "../modal";
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import { getAddressFromCoords } from "@/lib/geocoding/getAddressFromCoords";
 import type { OccurrenceType } from "@/lib/validations/occurrence";
-
 import { OccurrenceCard } from "./occurrence-card";
 import { ModalButton } from "./modal-button";
 import { ModalConfirm } from "./modal-confirm";
@@ -27,12 +26,11 @@ type ReportModalProps = {
 
 export function ReportModal({ open, onClose }: ReportModalProps) {
   const [step, setStep] = useState<Step>("form");
-
   const [selected, setSelected] = useState<OccurrenceType | null>(null);
-
   const [address, setAddress] = useState("");
-
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const controllerRef = useRef<AbortController | null>(null);
 
   const [feedback, setFeedback] = useState<FeedbackState>({
     open: false,
@@ -51,23 +49,26 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
 
   useEffect(() => {
     if (!coords) return;
-
     getAddressFromCoords(coords.lat, coords.lng).then(setAddress);
   }, [coords]);
+
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.abort();
+    };
+  }, []);
 
   function toggleOption(option: OccurrenceType) {
     setSelected((prev) => (prev === option ? null : option));
   }
 
   function handleClose() {
+    controllerRef.current?.abort();
+    if (isSubmitting) return;
     setStep("form");
-
     setSelected(null);
-
     setAddress("");
-
     setIsSubmitting(false);
-
     onClose();
   }
 
@@ -76,6 +77,9 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
 
     try {
       setIsSubmitting(true);
+
+      controllerRef.current?.abort();
+      controllerRef.current = new AbortController();
 
       const response = await fetch("/api/occurrences", {
         method: "POST",
@@ -88,6 +92,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
           longitude: coords.lng,
           occurredAt: new Date().toISOString(),
         }),
+        signal: controllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -103,6 +108,9 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
         message: "A ocorrência foi registrada com sucesso.",
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
       console.error(error);
 
       setFeedback({
@@ -112,6 +120,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
         message: "Não foi possível registrar a ocorrência.",
       });
     } finally {
+      controllerRef.current = null;
       setIsSubmitting(false);
     }
   }
