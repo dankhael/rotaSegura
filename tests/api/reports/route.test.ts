@@ -127,6 +127,16 @@ describe("POST /api/reports", () => {
     expect(res.status).toBe(400);
   });
 
+  it("retorna 400 para occurredAt no futuro (evita inflar a janela)", async () => {
+    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const res = await postReport({ ...BASE, occurredAt: future, deviceId: devId() });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: "occurredAt" })]),
+    );
+  });
+
   it("retorna 400 para body inválido (não-JSON)", async () => {
     const req = makeRequest("http://localhost:3000/api/reports", {
       method: "POST",
