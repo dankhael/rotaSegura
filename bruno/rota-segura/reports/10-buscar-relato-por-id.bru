@@ -1,0 +1,21 @@
+meta {
+  name: Buscar relato por id
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/reports/{{reportId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("retorna 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("retorna o relato com FK para a occurrence (AC8)", function() {
+    expect(res.body.id).to.equal(bru.getVar("reportId"));
+    expect(res.body.occurrenceId).to.equal(bru.getVar("occurrenceId"));
+  });
+}

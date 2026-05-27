@@ -9,30 +9,9 @@ export const OccurrenceTypeSchema = z.enum(
   },
 );
 
-export const createOccurrenceSchema = z.object({
-  type: OccurrenceTypeSchema,
-  latitude: z
-    .number({
-      required_error: "latitude é obrigatória",
-      invalid_type_error: "latitude deve ser um número",
-    })
-    .min(-90, "latitude deve ser >= -90")
-    .max(90, "latitude deve ser <= 90"),
-  longitude: z
-    .number({
-      required_error: "longitude é obrigatória",
-      invalid_type_error: "longitude deve ser um número",
-    })
-    .min(-180, "longitude deve ser >= -180")
-    .max(180, "longitude deve ser <= 180"),
-  occurredAt: z.coerce.date().optional(),
+export const OccurrenceStatusSchema = z.enum(["PENDING", "CONFIRMED"], {
+  errorMap: () => ({ message: "status deve ser PENDING ou CONFIRMED" }),
 });
-
-export type CreateOccurrenceInput = z.infer<typeof createOccurrenceSchema>;
-
-export const updateOccurrenceSchema = createOccurrenceSchema.partial();
-
-export type UpdateOccurrenceInput = z.infer<typeof updateOccurrenceSchema>;
 
 export const paginationSchema = z.object({
   page: z.coerce
@@ -49,3 +28,10 @@ export const paginationSchema = z.object({
 });
 
 export type PaginationInput = z.infer<typeof paginationSchema>;
+
+export const occurrenceListQuerySchema = paginationSchema.extend({
+  status: OccurrenceStatusSchema.optional(),
+  type: OccurrenceTypeSchema.optional(),
+});
+
+export type OccurrenceListQuery = z.infer<typeof occurrenceListQuerySchema>;
