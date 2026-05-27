@@ -9,6 +9,8 @@ export const OccurrenceTypeSchema = z.enum(
   },
 );
 
+export type OccurrenceType = z.infer<typeof OccurrenceTypeSchema>;
+
 export const OccurrenceStatusSchema = z.enum(["PENDING", "CONFIRMED"], {
   errorMap: () => ({ message: "status deve ser PENDING ou CONFIRMED" }),
 });

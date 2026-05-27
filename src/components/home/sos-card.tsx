@@ -1,4 +1,8 @@
-export function SosCard() {
+type SosCardProps = {
+  onOpenReport: () => void;
+};
+
+export function SosCard({ onOpenReport }: SosCardProps) {
   return (
     <div
       className="p-4.5"
@@ -41,12 +45,14 @@ export function SosCard() {
       <button
         type="button"
         className="mt-3.5 w-full py-3.5 font-bold text-[15px] flex items-center justify-center gap-2 transition-transform"
+        onClick={onOpenReport}
         style={{
           background: "var(--emergency)",
           color: "white",
           borderRadius: 12,
           letterSpacing: "-0.01em",
           boxShadow: "0 8px 20px -8px color-mix(in oklab, var(--emergency) 60%, transparent)",
+          cursor: "pointer",
         }}
       >
         <svg
