@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Modal } from "../modal";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import { getAddressFromCoords } from "@/lib/geocoding/getAddressFromCoords";
 import type { OccurrenceType } from "@/lib/validations/occurrence";
+
 import { OccurrenceCard } from "./occurrence-card";
 import { ModalButton } from "./modal-button";
 import { ModalConfirm } from "./modal-confirm";
@@ -31,6 +33,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const controllerRef = useRef<AbortController | null>(null);
+  const [occurredAt] = useState(() => new Date().toISOString());
 
   const [feedback, setFeedback] = useState<FeedbackState>({
     open: false,
@@ -39,80 +42,73 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     message: "",
   });
 
-  const { coords, retry } = useGeolocation();
+  const { coords } = useGeolocation();
+
+  function resetModal() {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+
+    setStep("form");
+    setSelected(null);
+    setAddress("");
+    setIsSubmitting(false);
+  }
 
   useEffect(() => {
-    if (open) {
-      retry();
-    }
-  }, [open, retry]);
+    if (!open) return;
+
+    return () => {
+      resetModal();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!coords) return;
     getAddressFromCoords(coords.lat, coords.lng).then(setAddress);
   }, [coords]);
 
-  useEffect(() => {
-    return () => {
-      controllerRef.current?.abort();
-    };
-  }, []);
-
-  function toggleOption(option: OccurrenceType) {
-    setSelected((prev) => (prev === option ? null : option));
-  }
-
   function handleClose() {
-    controllerRef.current?.abort();
-    if (isSubmitting) return;
-    setStep("form");
-    setSelected(null);
-    setAddress("");
-    setIsSubmitting(false);
+    resetModal();
     onClose();
   }
 
-  async function handleConfirmSend() {
+  async function handleConfirm() {
     if (!selected || !coords) return;
 
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    setIsSubmitting(true);
+
     try {
-      setIsSubmitting(true);
-
-      controllerRef.current?.abort();
-      controllerRef.current = new AbortController();
-
       const response = await fetch("/api/occurrences", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal, // 👈 ISSO AQUI
         body: JSON.stringify({
           type: selected,
           latitude: coords.lat,
           longitude: coords.lng,
-          occurredAt: new Date().toISOString(),
+          occurredAt,
         }),
-        signal: controllerRef.current.signal,
       });
 
       if (!response.ok) {
-        throw new Error("Erro ao registrar ocorrência");
+        throw new Error("Erro ao criar ocorrência");
       }
-
-      handleClose();
 
       setFeedback({
         open: true,
         type: "success",
         title: "Ocorrência enviada",
-        message: "A ocorrência foi registrada com sucesso.",
+        message: "Sua ocorrência foi registrada com sucesso.",
       });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return;
-      }
-      console.error(error);
 
+      resetModal();
+      onClose();
+    } catch {
       setFeedback({
         open: true,
         type: "error",
@@ -120,7 +116,6 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
         message: "Não foi possível registrar a ocorrência.",
       });
     } finally {
-      controllerRef.current = null;
       setIsSubmitting(false);
     }
   }
@@ -130,154 +125,100 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     value: OccurrenceType;
     icon: string;
   }[] = [
-    {
-      value: "FLOOD",
-      label: "Alagamento",
-      icon: "🌊",
-    },
-    {
-      value: "FIRE",
-      label: "Incêndio",
-      icon: "🔥",
-    },
-    {
-      value: "LANDSLIDE",
-      label: "Deslizamento",
-      icon: "⛰️",
-    },
-    {
-      value: "ACCIDENT",
-      label: "Acidente",
-      icon: "🚑",
-    },
-    {
-      value: "OBSTRUCTION",
-      label: "Obstrução",
-      icon: "🚧",
-    },
-    {
-      value: "OTHER",
-      label: "Outro",
-      icon: "📍",
-    },
+    { value: "FLOOD", label: "Alagamento", icon: "🌊" },
+    { value: "FIRE", label: "Incêndio", icon: "🔥" },
+    { value: "LANDSLIDE", label: "Deslizamento", icon: "⛰️" },
+    { value: "ACCIDENT", label: "Acidente", icon: "🚑" },
+    { value: "OBSTRUCTION", label: "Obstrução", icon: "🚧" },
+    { value: "OTHER", label: "Outro", icon: "📍" },
   ];
 
   const selectedOption = options.find((o) => o.value === selected);
 
   return (
     <>
-      <Modal open={open} onClose={handleClose} title="">
-        {/* ================= FORM ================= */}
+      <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+        <DialogContent
+          aria-labelledby="report-title"
+          aria-describedby="report-desc"
+          className="
+            w-[95vw]
+            max-w-225
+            sm:max-w-245
+            max-h-[90vh]
+            overflow-y-auto
+            p-8
+            rounded-xl
+            z-9999
+          "
+        >
+          {/* FORM */}
+          {step === "form" && (
+            <>
+              <div className="text-center space-y-2 mb-4">
+                <h2 id="report-title" className="text-xl font-bold">
+                  Reportar ocorrência
+                </h2>
 
-        {step === "form" && (
-          <>
-            <div
-              style={{
-                textAlign: "center",
-                marginBottom: 24,
-              }}
-            >
+                <p id="report-desc" className="text-sm text-muted-foreground">
+                  Selecione o tipo da ocorrência
+                </p>
+              </div>
               <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 20,
-                  margin: "0 auto 14px",
-                  background:
-                    "linear-gradient(135deg, var(--emergency-soft), rgba(255,255,255,0.08))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 28,
-                  boxShadow: "0 10px 30px rgba(255,77,77,0.18)",
-                }}
+                role="group"
+                aria-label="Tipos de ocorrência"
+                className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-6"
               >
-                🚨
+                {options.map((opt) => (
+                  <OccurrenceCard
+                    key={opt.value}
+                    label={opt.label}
+                    icon={opt.icon}
+                    active={selected === opt.value}
+                    onClick={() => setSelected((prev) => (prev === opt.value ? null : opt.value))}
+                  />
+                ))}
               </div>
 
-              <h2
-                style={{
-                  fontSize: 24,
-                  fontWeight: 700,
-                  marginBottom: 6,
-                }}
-              >
-                Reportar ocorrência
-              </h2>
-
-              <p
-                style={{
-                  fontSize: 14,
-                  color: "var(--ink-3)",
-                }}
-              >
-                Selecione o tipo da ocorrência
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 10,
-              }}
-            >
-              {options.map((opt) => (
-                <OccurrenceCard
-                  key={opt.value}
-                  label={opt.label}
-                  icon={opt.icon}
-                  active={selected === opt.value}
-                  onClick={() => toggleOption(opt.value)}
+              <div className="flex gap-3 mt-8">
+                <ModalButton
+                  label="Cancelar"
+                  variant="secondary"
+                  disabled={isSubmitting}
+                  onClick={handleClose}
                 />
-              ))}
-            </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                marginTop: 24,
-              }}
-            >
-              <ModalButton label="Cancelar" variant="secondary" onClick={handleClose} />
+                <ModalButton
+                  label="Continuar"
+                  variant="primary"
+                  disabled={!selected}
+                  onClick={() => setStep("confirm")}
+                />
+              </div>
+            </>
+          )}
 
-              <ModalButton
-                label="Continuar"
-                variant="primary"
-                disabled={!selected}
-                onClick={() => setStep("confirm")}
-              />
-            </div>
-          </>
-        )}
-
-        {/* ================= CONFIRM ================= */}
-
-        {step === "confirm" && (
-          <ModalConfirm
-            occurrenceLabel={selectedOption?.label || "Nenhuma"}
-            occurrenceIcon={selectedOption?.icon || "📍"}
-            address={address || "Obtendo endereço..."}
-            occurredAt={new Date().toLocaleString("pt-BR")}
-            isSubmitting={isSubmitting}
-            onBack={() => setStep("form")}
-            onConfirm={handleConfirmSend}
-          />
-        )}
-      </Modal>
+          {/* CONFIRM */}
+          {step === "confirm" && (
+            <ModalConfirm
+              occurrenceLabel={selectedOption?.label || "Nenhuma"}
+              occurrenceIcon={selectedOption?.icon || "📍"}
+              address={address || "Obtendo endereço..."}
+              occurredAt={new Date(occurredAt).toLocaleString("pt-BR")}
+              isSubmitting={isSubmitting}
+              onBack={() => setStep("form")}
+              onConfirm={handleConfirm}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertFeedback
         open={feedback.open}
         type={feedback.type}
         title={feedback.title}
         message={feedback.message}
-        onClose={() =>
-          setFeedback((prev) => ({
-            ...prev,
-            open: false,
-          }))
-        }
+        onClose={() => setFeedback((prev) => ({ ...prev, open: false }))}
       />
     </>
   );

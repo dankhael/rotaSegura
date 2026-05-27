@@ -10,7 +10,6 @@ type ModalConfirmProps = {
   isSubmitting: boolean;
 
   onBack: () => void;
-
   onConfirm: () => void;
 };
 
@@ -24,72 +23,30 @@ export function ModalConfirm({
   onConfirm,
 }: ModalConfirmProps) {
   return (
-    <>
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 20,
-            margin: "0 auto 14px",
-            background: "rgba(0,200,120,0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 28,
-            boxShadow: "0 10px 30px rgba(0,200,120,0.18)",
-          }}
-        >
+    <div className="flex flex-col gap-6">
+      {/* HEADER CENTRALIZADO */}
+      <div className="text-center space-y-2">
+        <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-2xl shadow-md">
           ✅
         </div>
 
-        <h2
-          style={{
-            fontSize: 22,
-            fontWeight: 700,
-            marginBottom: 6,
-          }}
-        >
-          Confirmar envio
-        </h2>
+        <h2 className="text-xl font-bold">Confirmar envio</h2>
 
-        <p
-          style={{
-            fontSize: 14,
-            color: "var(--ink-3)",
-          }}
-        >
-          Confira os dados da ocorrência
-        </p>
+        <p className="text-sm text-muted-foreground">Confira os dados antes de enviar</p>
       </div>
 
       {/* CARD */}
-
       <div
-        style={{
-          border: "2px solid rgba(255,255,255,0.08)",
-
-          borderRadius: 18,
-
-          padding: 18,
-
-          background: "rgba(255,255,255,0.03)",
-
-          display: "flex",
-
-          flexDirection: "column",
-
-          gap: 16,
-
-          boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
-
-          backdropFilter: "blur(6px)",
-        }}
+        className="
+        border border-white/10
+        rounded-2xl
+        p-5
+        bg-white/5
+        backdrop-blur-md
+        shadow-lg
+        flex flex-col
+        gap-4
+      "
       >
         <InfoRow label="Ocorrência" value={occurrenceLabel} icon={occurrenceIcon} />
 
@@ -99,14 +56,7 @@ export function ModalConfirm({
       </div>
 
       {/* ACTIONS */}
-
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          marginTop: 24,
-        }}
-      >
+      <div className="flex gap-3 pt-2">
         <ModalButton label="Voltar" variant="secondary" onClick={onBack} />
 
         <ModalButton
@@ -115,6 +65,6 @@ export function ModalConfirm({
           disabled={isSubmitting}
         />
       </div>
-    </>
+    </div>
   );
 }

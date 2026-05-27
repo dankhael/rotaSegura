@@ -15,6 +15,7 @@ export function ModalButton({
 
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       style={{
