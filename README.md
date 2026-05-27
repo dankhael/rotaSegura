@@ -200,7 +200,7 @@ O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`
 | ------ | ------------------------------------------------------------------------------- |
 | 400    | Payload inválido (campo faltando, email malformado, JSON inválido)              |
 | 401    | E-mail inexistente **ou** senha incorreta (mensagem genérica em ambos os casos) |
-| 403    | Credenciais válidas, mas `role !== "ADMIN"`                                     |
+| 403    | `role !== "ADMIN"` (mensagem genérica, não diferencia de credenciais inválidas) |
 | 429    | Mais de 5 tentativas no mesmo IP em 1 minuto (cabeçalho `Retry-After` enviado)  |
 
 **Provisionar o admin:** `npm run db:seed` lê `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do `.env`, hasheia a senha com bcrypt (custo 12) e faz `upsert`.

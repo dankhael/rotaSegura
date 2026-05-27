@@ -163,7 +163,8 @@ describe("POST /api/auth/login", () => {
     const body = await res.json();
 
     expect(res.status).toBe(403);
-    expect(body.error).toMatch(/administradores/i);
+    // Mensagem genérica — não revela "credenciais válidas mas sem privilégio".
+    expect(body.error).toBe("Acesso negado");
   });
 
   it("retorna 400 quando email está ausente", async () => {

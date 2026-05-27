@@ -6,9 +6,16 @@
 
 interface Bucket {
   hits: number[];
+  lastSeen: number;
 }
 
 const buckets = new Map<string, Bucket>();
+
+// Sweep oportunista: a cada N chamadas, varremos buckets que estão silenciosos
+// há > 5×janela e descartamos. Evita crescer indefinidamente em processos
+// long-running sem precisar de setInterval (que prenderia o event loop).
+const SWEEP_INTERVAL = 200;
+let callCount = 0;
 
 export interface RateLimitOptions {
   windowMs: number;
@@ -21,18 +28,27 @@ export interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
+function sweepStale(now: number, windowMs: number): void {
+  const cutoff = now - windowMs * 5;
+  for (const [key, bucket] of buckets) {
+    if (bucket.lastSeen < cutoff) buckets.delete(key);
+  }
+}
+
 export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now();
   const windowStart = now - opts.windowMs;
 
-  const bucket = buckets.get(key) ?? { hits: [] };
+  if (++callCount % SWEEP_INTERVAL === 0) sweepStale(now, opts.windowMs);
+
+  const bucket = buckets.get(key) ?? { hits: [], lastSeen: now };
   // Descarta hits fora da janela atual.
   const fresh = bucket.hits.filter((ts) => ts > windowStart);
 
   if (fresh.length >= opts.max) {
     const oldest = fresh[0];
     const retryAfterMs = oldest + opts.windowMs - now;
-    buckets.set(key, { hits: fresh });
+    buckets.set(key, { hits: fresh, lastSeen: now });
     return {
       allowed: false,
       remaining: 0,
@@ -41,7 +57,7 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
   }
 
   fresh.push(now);
-  buckets.set(key, { hits: fresh });
+  buckets.set(key, { hits: fresh, lastSeen: now });
 
   return {
     allowed: true,
@@ -54,6 +70,7 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
 export function resetRateLimit(key?: string): void {
   if (key === undefined) {
     buckets.clear();
+    callCount = 0;
   } else {
     buckets.delete(key);
   }

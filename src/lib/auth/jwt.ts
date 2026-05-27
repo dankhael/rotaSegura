@@ -8,8 +8,21 @@ export interface AuthTokenPayload extends JWTPayload {
   role: "ADMIN" | "USER";
 }
 
+let cachedSecretKey: Uint8Array | undefined;
+
 function getSecretKey(): Uint8Array {
-  return new TextEncoder().encode(env.JWT_SECRET);
+  if (!cachedSecretKey) {
+    cachedSecretKey = new TextEncoder().encode(env.JWT_SECRET);
+  }
+  return cachedSecretKey;
+}
+
+function isAuthTokenPayload(p: JWTPayload): p is AuthTokenPayload {
+  return (
+    typeof p.sub === "string" &&
+    typeof p.email === "string" &&
+    (p.role === "ADMIN" || p.role === "USER")
+  );
 }
 
 export async function signAuthToken(
@@ -25,13 +38,9 @@ export async function signAuthToken(
 export async function verifyAuthToken(token: string): Promise<AuthTokenPayload> {
   const { payload } = await jwtVerify(token, getSecretKey(), { algorithms: ["HS256"] });
 
-  if (
-    typeof payload.sub !== "string" ||
-    typeof payload.email !== "string" ||
-    (payload.role !== "ADMIN" && payload.role !== "USER")
-  ) {
+  if (!isAuthTokenPayload(payload)) {
     throw new Error("Token com claims inválidas");
   }
 
-  return payload as AuthTokenPayload;
+  return payload;
 }
