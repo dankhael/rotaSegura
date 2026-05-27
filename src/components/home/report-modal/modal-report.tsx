@@ -5,6 +5,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import { getAddressFromCoords } from "@/lib/geocoding/getAddressFromCoords";
+import { apiEndpoints } from "@/lib/api/endpoints";
+import { getDeviceId } from "@/lib/device/device-id";
 import type { OccurrenceType } from "@/lib/validations/occurrence";
 
 import { OccurrenceCard } from "./occurrence-card";
@@ -42,7 +44,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     message: "",
   });
 
-  const { coords } = useGeolocation();
+  const { coords, status, retry } = useGeolocation();
 
   function resetModal() {
     controllerRef.current?.abort();
@@ -62,10 +64,18 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     };
   }, [open]);
 
+  // Só geocodifica com o modal aberto e cancela a request anterior quando coords
+  // muda (o GPS refina a posição várias vezes), evitando chamadas órfãs ao Nominatim.
   useEffect(() => {
-    if (!coords) return;
-    getAddressFromCoords(coords.lat, coords.lng).then(setAddress);
-  }, [coords]);
+    if (!open || !coords) return;
+
+    const controller = new AbortController();
+    getAddressFromCoords(coords.lat, coords.lng, controller.signal).then((result) => {
+      if (!controller.signal.aborted) setAddress(result);
+    });
+
+    return () => controller.abort();
+  }, [open, coords]);
 
   function handleClose() {
     resetModal();
@@ -81,34 +91,45 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/occurrences", {
+      const deviceId = getDeviceId();
+      const response = await fetch(apiEndpoints.reports, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        signal: controller.signal, // 👈 ISSO AQUI
+        signal: controller.signal,
         body: JSON.stringify({
           type: selected,
           latitude: coords.lat,
           longitude: coords.lng,
           occurredAt,
+          ...(deviceId ? { deviceId } : {}),
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Erro ao criar ocorrência");
+        throw new Error(`POST ${apiEndpoints.reports} respondeu ${response.status}`);
       }
+
+      // 200 = relato idempotente (deviceId já registrado nessa ocorrência); 201 = novo.
+      const alreadyReported = response.status === 200;
 
       setFeedback({
         open: true,
         type: "success",
-        title: "Ocorrência enviada",
-        message: "Sua ocorrência foi registrada com sucesso.",
+        title: alreadyReported ? "Você já reportou esse evento" : "Ocorrência enviada",
+        message: alreadyReported
+          ? "Seu relato já estava contabilizado para esta ocorrência."
+          : "Sua ocorrência foi registrada com sucesso.",
       });
 
       resetModal();
       onClose();
-    } catch {
+    } catch (err) {
+      // Fechar o modal durante o envio aborta a request — não é erro do usuário.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
+      console.error("[POST /api/reports]", err);
       setFeedback({
         open: true,
         type: "error",
@@ -180,18 +201,26 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
                 ))}
               </div>
 
+              {!coords && status === "prompting" && (
+                <p className="mt-4 text-sm text-center text-(--ink-3)">Obtendo sua localização…</p>
+              )}
+
+              {!coords && (status === "denied" || status === "unavailable") && (
+                <p className="mt-4 text-sm text-center text-(--emergency)">
+                  Não foi possível obter sua localização.{" "}
+                  <button type="button" onClick={retry} className="underline font-semibold">
+                    Tentar novamente
+                  </button>
+                </p>
+              )}
+
               <div className="flex gap-3 mt-8">
-                <ModalButton
-                  label="Cancelar"
-                  variant="secondary"
-                  disabled={isSubmitting}
-                  onClick={handleClose}
-                />
+                <ModalButton label="Cancelar" variant="secondary" onClick={handleClose} />
 
                 <ModalButton
                   label="Continuar"
                   variant="primary"
-                  disabled={!selected}
+                  disabled={!selected || !coords}
                   onClick={() => setStep("confirm")}
                 />
               </div>

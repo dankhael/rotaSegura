@@ -2,59 +2,77 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ReportModal } from "../../../src/components/home/report-modal/modal-report";
 
-// 🔥 MOCK DO HOOK DE GEOLOCALIZAÇÃO
-vi.mock("@/lib/hooks/use-geolocation", () => {
-  return {
-    useGeolocation: () => ({
-      coords: {
-        lat: -8.05,
-        lng: -34.9,
-      },
-    }),
-  };
-});
+vi.mock("@/lib/hooks/use-geolocation", () => ({
+  useGeolocation: () => ({
+    coords: { lat: -8.05, lng: -34.9, accuracy: 20 },
+    source: "device",
+    status: "granted",
+    error: null,
+    retry: vi.fn(),
+  }),
+}));
 
-// (opcional mas recomendado)
-vi.mock("@/lib/geocoding/getAddressFromCoords", () => {
-  return {
-    getAddressFromCoords: async () => "Rua Teste, Recife",
-  };
-});
+vi.mock("@/lib/geocoding/getAddressFromCoords", () => ({
+  getAddressFromCoords: async () => "Rua Teste, Recife",
+}));
+
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+async function goToConfirmStep() {
+  fireEvent.click(screen.getByText("Alagamento"));
+  fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+  expect(await screen.findByText(/confirmar envio/i)).toBeInTheDocument();
+}
 
 describe("ReportModal", () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
+    localStorage.clear();
+    vi.restoreAllMocks();
   });
 
-  it("fluxo completo: envia ocorrência com sucesso", async () => {
-    render(<ReportModal open={true} onClose={vi.fn()} />);
+  it("envia o relato para /api/reports com o payload e deviceId corretos", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ report: {}, occurrence: {}, clustering: {} }, 201));
 
-    // 1. selecionar ocorrência
-    fireEvent.click(screen.getByText("Alagamento"));
+    render(<ReportModal open onClose={vi.fn()} />);
+    await goToConfirmStep();
 
-    // 2. continuar
-    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-
-    // 3. esperar modal de confirmação aparecer
-    expect(await screen.findByText(/confirmar envio/i)).toBeTruthy();
-
-    // 4. clicar confirmar
     fireEvent.click(screen.getByRole("button", { name: /confirmar/i }));
 
-    // 5. validar fetch
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/occurrences",
-        expect.objectContaining({
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: expect.any(String),
-        }),
-      );
-    });
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(url).toBe("/api/reports");
+    expect(init).toMatchObject({ method: "POST" });
+
+    const payload = JSON.parse((init as RequestInit).body as string);
+    expect(payload).toMatchObject({ type: "FLOOD", latitude: -8.05, longitude: -34.9 });
+    expect(payload.deviceId).toEqual(expect.any(String));
+
+    expect(await screen.findByText(/ocorrência enviada/i)).toBeInTheDocument();
+  });
+
+  it("mostra feedback de erro quando a API responde com falha", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ error: "boom" }, 500));
+
+    render(<ReportModal open onClose={vi.fn()} />);
+    await goToConfirmStep();
+
+    fireEvent.click(screen.getByRole("button", { name: /confirmar/i }));
+
+    expect(await screen.findByText(/erro ao enviar/i)).toBeInTheDocument();
+  });
+
+  it("desabilita o botão Continuar enquanto nenhum tipo está selecionado", () => {
+    global.fetch = vi.fn();
+    render(<ReportModal open onClose={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: /continuar/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByText("Alagamento"));
+    expect(screen.getByRole("button", { name: /continuar/i })).toBeEnabled();
   });
 });
