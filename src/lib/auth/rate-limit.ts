@@ -1,9 +1,4 @@
-// Rate limiter in-memory baseado em janela deslizante por chave (ex.: IP).
-//
-// Limitação conhecida: em ambientes serverless (Vercel) o estado vive apenas
-// dentro de uma instância e some no cold start. Atende o critério da RS-US02
-// em dev e single-instance; para prod multi-instância migrar para Redis/Upstash.
-
+// Estado por processo: não compartilha entre instâncias serverless.
 interface Bucket {
   hits: number[];
   lastSeen: number;
@@ -11,9 +6,7 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>();
 
-// Sweep oportunista: a cada N chamadas, varremos buckets que estão silenciosos
-// há > 5×janela e descartamos. Evita crescer indefinidamente em processos
-// long-running sem precisar de setInterval (que prenderia o event loop).
+// Sweep oportunista evita crescer indefinidamente sem precisar de setInterval.
 const SWEEP_INTERVAL = 200;
 let callCount = 0;
 
@@ -42,7 +35,6 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
   if (++callCount % SWEEP_INTERVAL === 0) sweepStale(now, opts.windowMs);
 
   const bucket = buckets.get(key) ?? { hits: [], lastSeen: now };
-  // Descarta hits fora da janela atual.
   const fresh = bucket.hits.filter((ts) => ts > windowStart);
 
   if (fresh.length >= opts.max) {
@@ -66,7 +58,6 @@ export function checkRateLimit(key: string, opts: RateLimitOptions): RateLimitRe
   };
 }
 
-/** Usado por testes para isolar o estado entre casos. */
 export function resetRateLimit(key?: string): void {
   if (key === undefined) {
     buckets.clear();

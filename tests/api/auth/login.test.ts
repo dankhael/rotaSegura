@@ -1,10 +1,4 @@
-/**
- * @vitest-environment node
- *
- * Testes unitários do endpoint POST /api/auth/login.
- * Mocam prisma — não exigem banco rodando. Cobertura: happy path,
- * credencial inválida, payload inválido, role não-admin, rate limit, claims do JWT.
- */
+/** @vitest-environment node */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
@@ -19,7 +13,6 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-// Import depois dos mocks.
 import { SignJWT } from "jose";
 import { POST } from "@/app/api/auth/login/route";
 import { hashPassword } from "@/lib/auth/password";
@@ -128,7 +121,6 @@ describe("POST /api/auth/login", () => {
 
     expect(res.status).toBe(401);
     expect(body.error).toBe("Credenciais inválidas");
-    // Mensagem genérica — não distingue qual campo falhou.
     expect(body.error).not.toMatch(/email|senha|password/i);
   });
 
@@ -163,7 +155,6 @@ describe("POST /api/auth/login", () => {
     const body = await res.json();
 
     expect(res.status).toBe(403);
-    // Mensagem genérica — não revela "credenciais válidas mas sem privilégio".
     expect(body.error).toBe("Acesso negado");
   });
 
@@ -220,6 +211,31 @@ describe("POST /api/auth/login", () => {
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get("Retry-After")).toBeTruthy();
     expect(body.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it("libera novas tentativas após a janela do rate limit expirar", async () => {
+    findUniqueMock.mockResolvedValue(null);
+    const payload = { email: "attacker@example.com", password: "qualquer" };
+    const ip = "10.0.0.99";
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+
+      for (let i = 0; i < 5; i++) {
+        const res = await POST(makeRequest(payload, ip));
+        expect(res.status).toBe(401);
+      }
+      const blocked = await POST(makeRequest(payload, ip));
+      expect(blocked.status).toBe(429);
+
+      // janela é 60s — avançar 61s libera o primeiro hit.
+      vi.setSystemTime(new Date("2026-01-01T00:01:01Z"));
+      const released = await POST(makeRequest(payload, ip));
+      expect(released.status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rate limit é por IP — outros IPs não são afetados", async () => {

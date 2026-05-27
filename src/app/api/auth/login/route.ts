@@ -12,22 +12,28 @@ import {
 import { signAuthToken } from "@/lib/auth/jwt";
 import { verifyPassword } from "@/lib/auth/password";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
-import { loginSchema, type UserRole } from "@/lib/validations/auth";
+import { UserRoleSchema, loginSchema, type UserRole } from "@/lib/validations/auth";
 
 const RATE_LIMIT = { windowMs: 60_000, max: 5 };
 
-// Hash bcrypt fixo usado para nivelar o tempo de resposta quando o e-mail não
-// existe. Sem isso, dá pra enumerar usuários medindo a diferença entre "miss"
-// (sem bcrypt.compare) e "senha errada" (com bcrypt.compare).
+// anti-timing: nivela o tempo de resposta no caminho de e-mail inexistente.
 const DUMMY_PASSWORD_HASH = "$2a$12$CwTycUXWue0Thq9StjUM0uJ8O3p3ZcN8C5KQk6T2RkOdq0fLpmS9G";
 
+// requer proxy confiável (Vercel/Cloudflare); sem proxy, x-forwarded-for é forjável.
 function getClientIp(request: NextRequest): string {
+  const vercelIp = request.headers.get("x-vercel-forwarded-for");
+  if (vercelIp) return vercelIp.split(",")[0]?.trim() || "unknown";
+
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp;
+
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
     const first = forwarded.split(",")[0]?.trim();
     if (first) return first;
   }
-  return request.headers.get("x-real-ip") ?? "unknown";
+
+  return "unknown";
 }
 
 async function parseBody(request: NextRequest) {
@@ -57,11 +63,13 @@ async function authenticateAdmin(email: string, password: string): Promise<AuthR
     return { ok: false, status: 401 };
   }
 
-  if (user.role !== "ADMIN") {
+  // defensivo: role no banco é string crua e pode driftar.
+  const role = UserRoleSchema.safeParse(user.role);
+  if (!role.success || role.data !== "ADMIN") {
     return { ok: false, status: 403 };
   }
 
-  return { ok: true, user: { id: user.id, email: user.email, role: user.role as UserRole } };
+  return { ok: true, user: { id: user.id, email: user.email, role: role.data } };
 }
 
 export async function POST(request: NextRequest) {
@@ -92,6 +100,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Garante runtime Node (bcryptjs/jose com HS256 funcionam em edge, mas Prisma
-// e o rate limiter in-memory exigem Node).
+// Prisma e o rate limiter in-memory exigem runtime Node.
 export const runtime = "nodejs";

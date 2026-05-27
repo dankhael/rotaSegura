@@ -207,6 +207,13 @@ O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`
 
 > ⚠️ O rate limiter atual é **in-memory** (Map no processo). Funciona em dev e em deploys single-instance, mas não compartilha estado entre lambdas serverless. Para Vercel/multi-instância, migrar para Upstash Redis (`@upstash/ratelimit`).
 
+**Follow-ups conhecidos (não bloqueiam a US02):**
+
+- Rate limit hoje só pega IP. Um atacante com botnet/proxies residenciais pode brute-forçar um e-mail específico sem bater o limite. Adicionar bucket `login-email:${email}` com janela maior quando entrar mais carga.
+- Token volta no response body, não em cookie `httpOnly`. Funciona pro frontend inicial; quando a RS-US05 entrar em produção, considerar trocar pra cookie `httpOnly` + `SameSite=Strict` + CSRF token (sem breaking change na API).
+- `bcryptjs` é puro-JS (~250ms/hash custo 12). Como o handler força `runtime = "nodejs"`, daria pra usar `bcrypt` nativo (~50ms). Pra login admin a latência não importa; o JS puro simplifica deploy. Avaliar troca se a auth virar gargalo.
+- `getClientIp` assume proxy confiável (Vercel/Cloudflare) reescrevendo `x-vercel-forwarded-for`/`x-forwarded-for`. Sem proxy, o header é forjável e o rate limit por IP perde garantia.
+
 ## Próximas sprints
 
 - **Sprint 1:** Modelagem completa de `SupportPoint`, seeds, endpoint de busca por raio (PostGIS `ST_DWithin`)
