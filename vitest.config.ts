@@ -1,6 +1,10 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
+
+// Vitest não popula process.env a partir de .env por padrão.
+const env = loadEnv("test", process.cwd(), "");
 
 export default defineConfig({
   plugins: [react()],
@@ -11,6 +15,7 @@ export default defineConfig({
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
     fileParallelism: false,
     css: false,
+    env,
   },
   resolve: {
     alias: {

@@ -9,6 +9,19 @@ datasource db {
   extensions = [postgis, postgis_topology, postgis_tiger_geocoder, fuzzystrmatch]
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  // role validado em camada de aplicação: ADMIN | USER.
+  role         String   @default("USER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@map("users")
+}
+
 enum OccurrenceStatus {
   PENDING
   CONFIRMED

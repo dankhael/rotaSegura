@@ -44,7 +44,10 @@ npm run db:up
 # 5. Aplique a migration inicial (cria extensões PostGIS + tabela SupportPoint)
 npm run db:migrate
 
-# 6. Rode o app em modo dev
+# 6. (Opcional) Crie o admin inicial. Lê SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD do .env.
+npm run db:seed
+
+# 7. Rode o app em modo dev
 npm run dev
 ```
 
@@ -68,6 +71,7 @@ A aplicação fica disponível em `http://localhost:3000`. Healthcheck em `http:
 | `npm run db:down`    | Derruba os containers (volume preservado)                      |
 | `npm run db:migrate` | `prisma migrate dev` (gera + aplica migrations)                |
 | `npm run db:reset`   | Reseta o banco (apaga dados, reaplica migrations) — **só dev** |
+| `npm run db:seed`    | Cria/atualiza o admin a partir de `SEED_ADMIN_*` no `.env`     |
 | `npm run db:studio`  | Abre Prisma Studio para inspecionar dados                      |
 
 ## Estrutura de pastas
@@ -150,13 +154,17 @@ Checklist mínimo do PR:
 
 Veja [.env.example](.env.example) para a lista canônica.
 
-| Variável             | Obrigatória | Default       | Descrição                                                      |
-| -------------------- | ----------- | ------------- | -------------------------------------------------------------- |
-| `DATABASE_URL`       | sim         | —             | URL Postgres com extensão PostGIS habilitada                   |
-| `NODE_ENV`           | não         | `development` | `development`, `test`, `production`                            |
-| `CLUSTER_RADIUS_M`   | não         | `200`         | Raio (m) usado para agrupar relatos próximos (US06)            |
-| `CLUSTER_WINDOW_MIN` | não         | `120`         | Janela temporal (min) para considerar relatos no mesmo cluster |
-| `CLUSTER_THRESHOLD`  | não         | `3`           | Número de `deviceId`s distintos para elevar a ocorrência       |
+| Variável              | Obrigatória | Default       | Descrição                                                             |
+| --------------------- | ----------- | ------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`        | sim         | —             | URL Postgres com extensão PostGIS habilitada                          |
+| `NODE_ENV`            | não         | `development` | `development`, `test`, `production`                                   |
+| `JWT_SECRET`          | sim         | —             | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32` |
+| `JWT_EXPIRES_IN`      | não         | `1h`          | Tempo de vida do token (aceita formato vercel/ms)                     |
+| `SEED_ADMIN_EMAIL`    | não         | —             | E-mail do admin criado por `npm run db:seed`                          |
+| `SEED_ADMIN_PASSWORD` | não         | —             | Senha do admin do seed (será hasheada com bcrypt antes de gravar)     |
+| `CLUSTER_RADIUS_M`    | não         | `200`         | Raio (m) usado para agrupar relatos próximos (US06)                   |
+| `CLUSTER_WINDOW_MIN`  | não         | `120`         | Janela temporal (min) para considerar relatos no mesmo cluster        |
+| `CLUSTER_THRESHOLD`   | não         | `3`           | Número de `deviceId`s distintos para elevar a ocorrência              |
 
 A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando. No Vercel, alterar as vars `CLUSTER_*` no dashboard não exige novo build (Functions releem na próxima inicialização da instância).
 
@@ -216,6 +224,55 @@ curl -s 'localhost:3000/api/occurrences?status=CONFIRMED'
 OCC=$(curl -s localhost:3000/api/occurrences | jq -r '.data[0].id')
 curl -s "localhost:3000/api/occurrences/$OCC/reports"
 ```
+
+## API: Autenticação
+
+### `POST /api/auth/login`
+
+Autentica um administrador previamente provisionado e devolve um JWT (HS256, expiração padrão de 1h).
+
+**Request:**
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@rotasegura.local",
+  "password": "ChangeMe!123"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": { "id": "ck...", "email": "admin@rotasegura.local", "role": "ADMIN" }
+}
+```
+
+O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Verifique-o nas rotas protegidas com `verifyAuthToken` de [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts).
+
+**Erros:**
+
+| Status | Quando                                                                          |
+| ------ | ------------------------------------------------------------------------------- |
+| 400    | Payload inválido (campo faltando, email malformado, JSON inválido)              |
+| 401    | E-mail inexistente **ou** senha incorreta (mensagem genérica em ambos os casos) |
+| 403    | `role !== "ADMIN"` (mensagem genérica, não diferencia de credenciais inválidas) |
+| 429    | Mais de 5 tentativas no mesmo IP em 1 minuto (cabeçalho `Retry-After` enviado)  |
+
+**Provisionar o admin:** `npm run db:seed` lê `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do `.env`, hasheia a senha com bcrypt (custo 12) e faz `upsert`.
+
+> ⚠️ O rate limiter atual é **in-memory** (Map no processo). Funciona em dev e em deploys single-instance, mas não compartilha estado entre lambdas serverless. Para Vercel/multi-instância, migrar para Upstash Redis (`@upstash/ratelimit`).
+
+**Follow-ups conhecidos (não bloqueiam a US02):**
+
+- Rate limit hoje só pega IP. Um atacante com botnet/proxies residenciais pode brute-forçar um e-mail específico sem bater o limite. Adicionar bucket `login-email:${email}` com janela maior quando entrar mais carga.
+- Token volta no response body, não em cookie `httpOnly`. Funciona pro frontend inicial; quando a RS-US05 entrar em produção, considerar trocar pra cookie `httpOnly` + `SameSite=Strict` + CSRF token (sem breaking change na API).
+- `bcryptjs` é puro-JS (~250ms/hash custo 12). Como o handler força `runtime = "nodejs"`, daria pra usar `bcrypt` nativo (~50ms). Pra login admin a latência não importa; o JS puro simplifica deploy. Avaliar troca se a auth virar gargalo.
+- `getClientIp` assume proxy confiável (Vercel/Cloudflare) reescrevendo `x-vercel-forwarded-for`/`x-forwarded-for`. Sem proxy, o header é forjável e o rate limit por IP perde garantia.
 
 ## Próximas sprints
 

@@ -1,0 +1,40 @@
+meta {
+  name: Login admin (sucesso)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "admin@rotasegura.local",
+    "password": "ChangeMe!123"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("authToken", res.body.token);
+  }
+}
+
+tests {
+  test("deve retornar 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("deve devolver token JWT", function() {
+    expect(res.body.token).to.be.a("string");
+    expect(res.body.token.split(".")).to.have.length(3);
+  });
+  test("deve devolver dados públicos do usuário (sem passwordHash)", function() {
+    expect(res.body.user).to.have.property("id");
+    expect(res.body.user).to.have.property("email");
+    expect(res.body.user).to.have.property("role", "ADMIN");
+    expect(res.body.user).to.not.have.property("passwordHash");
+  });
+}
