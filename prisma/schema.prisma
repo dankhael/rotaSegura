@@ -1,6 +1,10 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+  // Vercel Functions rodam em Amazon Linux (rhel-openssl-3.0.x). O deploy via
+  // GitHub Actions (ubuntu-latest) gera o engine "native" debian e o envia com
+  // `vercel deploy --prebuilt`, então o engine RHEL precisa ser embarcado junto.
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
