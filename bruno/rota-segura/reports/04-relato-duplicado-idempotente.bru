@@ -1,0 +1,37 @@
+meta {
+  name: Relato duplicado (mesmo deviceId — idempotência AC6)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FLOOD",
+    "latitude": -8.057838,
+    "longitude": -34.882750,
+    "deviceId": "{{deviceId1}}"
+  }
+}
+
+tests {
+  test("retorna 200 (não 201) — semântica idempotente", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("clustering.duplicateDevice=true", function() {
+    expect(res.body.clustering.duplicateDevice).to.equal(true);
+    expect(res.body.clustering.promoted).to.equal(false);
+  });
+  test("retorna o report.id original (AC6)", function() {
+    expect(res.body.report.id).to.equal(bru.getVar("reportId"));
+  });
+  test("contadores da occurrence não mudaram (uniqueDeviceCount segue 3)", function() {
+    expect(res.body.occurrence.reportCount).to.equal(3);
+    expect(res.body.occurrence.uniqueDeviceCount).to.equal(3);
+  });
+}

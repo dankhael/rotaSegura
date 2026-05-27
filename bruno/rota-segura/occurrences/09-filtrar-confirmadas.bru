@@ -1,0 +1,23 @@
+meta {
+  name: Filtrar ocorrências CONFIRMED
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/occurrences?status=CONFIRMED&type=FLOOD
+  body: none
+  auth: none
+}
+
+tests {
+  test("retorna 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  test("todos os itens têm status=CONFIRMED e type=FLOOD", function() {
+    for (const occ of res.body.data) {
+      expect(occ.status).to.equal("CONFIRMED");
+      expect(occ.type).to.equal("FLOOD");
+    }
+  });
+}

@@ -1,0 +1,35 @@
+meta {
+  name: Relato sem deviceId (não conta para threshold)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FLOOD",
+    "latitude": -8.057900,
+    "longitude": -34.882800
+  }
+}
+
+tests {
+  test("retorna 201 (deviceId é opcional)", function() {
+    expect(res.status).to.equal(201);
+  });
+  test("agrupou no cluster confirmado", function() {
+    expect(res.body.occurrence.id).to.equal(bru.getVar("occurrenceId"));
+  });
+  test("reportCount sobe; uniqueDeviceCount NÃO conta (AC6 corolário)", function() {
+    expect(res.body.occurrence.reportCount).to.equal(4);
+    expect(res.body.occurrence.uniqueDeviceCount).to.equal(3);
+  });
+  test("status segue CONFIRMED (não rebaixa)", function() {
+    expect(res.body.occurrence.status).to.equal("CONFIRMED");
+  });
+}

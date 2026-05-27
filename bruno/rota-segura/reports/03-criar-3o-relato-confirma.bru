@@ -1,0 +1,38 @@
+meta {
+  name: Criar 3º relato (eleva para CONFIRMED — AC4)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FLOOD",
+    "latitude": -8.058200,
+    "longitude": -34.882900,
+    "deviceId": "{{deviceId3}}"
+  }
+}
+
+tests {
+  test("retorna 201", function() {
+    expect(res.status).to.equal(201);
+  });
+  test("mesma occurrence do cluster", function() {
+    expect(res.body.occurrence.id).to.equal(bru.getVar("occurrenceId"));
+  });
+  test("status CONFIRMED, confirmedAt populado, clustering.promoted=true (AC4)", function() {
+    expect(res.body.occurrence.status).to.equal("CONFIRMED");
+    expect(res.body.occurrence.confirmedAt).to.be.a("string");
+    expect(res.body.clustering.promoted).to.equal(true);
+  });
+  test("uniqueDeviceCount=3, reportCount=3", function() {
+    expect(res.body.occurrence.reportCount).to.equal(3);
+    expect(res.body.occurrence.uniqueDeviceCount).to.equal(3);
+  });
+}

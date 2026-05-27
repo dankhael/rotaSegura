@@ -154,16 +154,76 @@ Checklist mínimo do PR:
 
 Veja [.env.example](.env.example) para a lista canônica.
 
-| Variável              | Obrigatória | Descrição                                                             |
-| --------------------- | ----------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`        | sim         | URL Postgres com extensão PostGIS habilitada                          |
-| `NODE_ENV`            | não         | `development` (default), `test`, `production`                         |
-| `JWT_SECRET`          | sim         | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32` |
-| `JWT_EXPIRES_IN`      | não         | Tempo de vida do token (`1h` default; aceita formato vercel/ms)       |
-| `SEED_ADMIN_EMAIL`    | não         | E-mail do admin criado por `npm run db:seed`                          |
-| `SEED_ADMIN_PASSWORD` | não         | Senha do admin do seed (será hasheada com bcrypt antes de gravar)     |
+| Variável              | Obrigatória | Default       | Descrição                                                             |
+| --------------------- | ----------- | ------------- | --------------------------------------------------------------------- |
+| `DATABASE_URL`        | sim         | —             | URL Postgres com extensão PostGIS habilitada                          |
+| `NODE_ENV`            | não         | `development` | `development`, `test`, `production`                                   |
+| `JWT_SECRET`          | sim         | —             | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32` |
+| `JWT_EXPIRES_IN`      | não         | `1h`          | Tempo de vida do token (aceita formato vercel/ms)                     |
+| `SEED_ADMIN_EMAIL`    | não         | —             | E-mail do admin criado por `npm run db:seed`                          |
+| `SEED_ADMIN_PASSWORD` | não         | —             | Senha do admin do seed (será hasheada com bcrypt antes de gravar)     |
+| `CLUSTER_RADIUS_M`    | não         | `200`         | Raio (m) usado para agrupar relatos próximos (US06)                   |
+| `CLUSTER_WINDOW_MIN`  | não         | `120`         | Janela temporal (min) para considerar relatos no mesmo cluster        |
+| `CLUSTER_THRESHOLD`   | não         | `3`           | Número de `deviceId`s distintos para elevar a ocorrência              |
 
-A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando.
+A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando. No Vercel, alterar as vars `CLUSTER_*` no dashboard não exige novo build (Functions releem na próxima inicialização da instância).
+
+## Regras de agrupamento de relatos (US06)
+
+O domínio separa duas entidades:
+
+- **Report** (`/api/reports`): evento bruto enviado por um usuário/dispositivo. Cada POST cria um relato e dispara a lógica de agrupamento.
+- **Occurrence** (`/api/occurrences`): agregado consolidado de relatos próximos. Estado **derivado** — não há POST/PATCH público; é mantido automaticamente.
+
+### Como funciona o agrupamento
+
+Ao receber um `POST /api/reports`, dentro de uma transação:
+
+1. Procura uma `Occurrence` candidata: mesmo `type`, status `PENDING`/`CONFIRMED`, com `centroid` dentro de `CLUSTER_RADIUS_M` do ponto do relato e `lastReportedAt` dentro da janela `CLUSTER_WINDOW_MIN`. Empate: a mais próxima.
+2. Se **não houver candidata**, cria uma nova `Occurrence` com status `PENDING` e `centroid = ponto do relato`.
+3. Se **houver candidata**, associa o relato a ela e recalcula contadores e centróide.
+4. Se a ocorrência está `PENDING` e `uniqueDeviceCount >= CLUSTER_THRESHOLD`, eleva para `CONFIRMED` (`confirmedAt` é populado).
+
+### Idempotência (`deviceId`)
+
+O cliente pode enviar um `deviceId` (UUID gerado e persistido no `localStorage`) no body do POST. Um índice único parcial em `(occurrenceId, deviceId)` garante que **o mesmo deviceId não conta duas vezes** numa mesma ocorrência:
+
+- Primeiro POST com aquele deviceId → cria o relato (201).
+- POSTs subsequentes com o mesmo deviceId na mesma ocorrência → retorna 200 com o `report` original e `clustering.duplicateDevice: true`. Contadores não mudam.
+
+Relatos **sem `deviceId`** são aceitos e contam em `reportCount`, mas **não** em `uniqueDeviceCount` (não desbloqueiam o threshold sozinhos — evita spam anônimo).
+
+### Centróide
+
+`centroidLatitude/Longitude` é a média aritmética das coordenadas dos relatos da ocorrência, recalculada a cada novo relato. Para clusters pequenos (≤ poucos km), o centróide aritmético é equivalente ao geodésico.
+
+### Race conditions
+
+- `pg_advisory_xact_lock` por bucket (`type` + lat/lon arredondado a 0,001°) serializa criações simultâneas na mesma vizinhança, evitando ocorrências gêmeas.
+- `SELECT ... FOR UPDATE` no candidato serializa updates concorrentes na mesma ocorrência.
+
+### Exemplos `curl`
+
+```bash
+DEV1=$(uuidgen); DEV2=$(uuidgen); DEV3=$(uuidgen)
+
+# 3 reports distintos no mesmo lugar → CONFIRMED no 3º
+for D in $DEV1 $DEV2 $DEV3; do
+  curl -s localhost:3000/api/reports -H 'Content-Type: application/json' \
+    -d "{\"type\":\"FLOOD\",\"latitude\":-8.0578,\"longitude\":-34.8827,\"deviceId\":\"$D\"}"
+done
+
+# Idempotência: repetir DEV1 → 200, mesmo report.id, duplicateDevice=true
+curl -s localhost:3000/api/reports -H 'Content-Type: application/json' \
+  -d "{\"type\":\"FLOOD\",\"latitude\":-8.0578,\"longitude\":-34.8827,\"deviceId\":\"$DEV1\"}"
+
+# Listar ocorrências confirmadas
+curl -s 'localhost:3000/api/occurrences?status=CONFIRMED'
+
+# Rastreabilidade: relatos consolidados em uma ocorrência
+OCC=$(curl -s localhost:3000/api/occurrences | jq -r '.data[0].id')
+curl -s "localhost:3000/api/occurrences/$OCC/reports"
+```
 
 ## API: Autenticação
 

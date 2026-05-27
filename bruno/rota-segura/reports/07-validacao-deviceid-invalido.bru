@@ -1,0 +1,31 @@
+meta {
+  name: Validação — deviceId não-UUID (400)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/reports
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "type": "FLOOD",
+    "latitude": -8.0578,
+    "longitude": -34.8827,
+    "deviceId": "not-a-uuid"
+  }
+}
+
+tests {
+  test("retorna 400", function() {
+    expect(res.status).to.equal(400);
+  });
+  test("erro aponta o campo deviceId", function() {
+    expect(res.body.error).to.equal("Payload inválido");
+    const fields = res.body.details.map((d) => d.field);
+    expect(fields).to.include("deviceId");
+  });
+}
