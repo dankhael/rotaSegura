@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 
-import { POINT_COUNTS, type MockPointKind } from "./map-mock-points";
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
+import { useOccurrences } from "@/lib/hooks/use-occurrences";
+import { useSupportPoints } from "@/lib/hooks/use-support-points";
+import type { SupportPoint, SupportPointType } from "@/types/support-point";
 
 const ShelterMap = dynamic(() => import("@/components/ui/ShelterMap"), {
   ssr: false,
@@ -18,34 +20,26 @@ const ShelterMap = dynamic(() => import("@/components/ui/ShelterMap"), {
   ),
 });
 
-type Filter = "all" | MockPointKind;
+type Filter = "all" | SupportPointType;
 
-const FILTERS: { id: Filter; label: string; swatch?: string; count: number }[] = [
-  { id: "all", label: "Todos", count: POINT_COUNTS.all },
-  {
-    id: "shelter",
-    label: "Abrigos",
-    swatch: "oklch(0.55 0.13 240)",
-    count: POINT_COUNTS.shelter,
-  },
-  {
-    id: "medical",
-    label: "Médico",
-    swatch: "oklch(0.62 0.19 25)",
-    count: POINT_COUNTS.medical,
-  },
-  {
-    id: "supply",
-    label: "Suprimentos",
-    swatch: "oklch(0.62 0.13 150)",
-    count: POINT_COUNTS.supply,
-  },
+const FILTER_DEFS: { id: Filter; label: string; swatch?: string }[] = [
+  { id: "all", label: "Todos" },
+  { id: "SHELTER", label: "Abrigos", swatch: "oklch(0.55 0.13 240)" },
+  { id: "MEDICAL", label: "Médico", swatch: "oklch(0.62 0.19 25)" },
+  { id: "SUPPLY", label: "Suprimentos", swatch: "oklch(0.62 0.13 150)" },
+  { id: "OTHER", label: "Outros", swatch: "oklch(0.55 0.02 250)" },
 ];
+
+function countFor(points: SupportPoint[], id: Filter): number {
+  return id === "all" ? points.length : points.filter((p) => p.type === id).length;
+}
 
 export function MapCard() {
   const [filter, setFilter] = useState<Filter>("all");
-  const total = POINT_COUNTS.all;
   const { coords, source, status, retry } = useGeolocation();
+  const { occurrences, hasError: occurrencesFailed } = useOccurrences();
+  const { supportPoints, hasError: supportPointsFailed } = useSupportPoints();
+  const total = supportPoints.length;
   const fallbackVisible = status === "denied" || status === "unavailable";
   const locating = status === "prompting";
   const [centerToken, setCenterToken] = useState(0);
@@ -87,7 +81,7 @@ export function MapCard() {
             Mapa de Apoio
           </span>
           <span className="ml-1" style={{ fontSize: 12, color: "var(--ink-3)" }}>
-            {total} pontos ativos · raio 8 km
+            {total} {total === 1 ? "ponto ativo" : "pontos ativos"}
           </span>
         </div>
         <div
@@ -95,10 +89,10 @@ export function MapCard() {
           aria-label="Filtros de pontos de apoio"
           className="flex gap-1.5 flex-wrap"
         >
-          {FILTERS.map((f) => (
+          {FILTER_DEFS.map((f) => (
             <FilterChip
               key={f.id}
-              filter={f}
+              filter={{ ...f, count: countFor(supportPoints, f.id) }}
               active={filter === f.id}
               onClick={() => setFilter(f.id)}
             />
@@ -107,14 +101,28 @@ export function MapCard() {
       </div>
 
       {fallbackVisible && <GeolocationNotice denied={status === "denied"} />}
+      {supportPointsFailed && (
+        <MapDataNotice>
+          <strong style={{ fontWeight: 600 }}>Não foi possível carregar os pontos de apoio.</strong>{" "}
+          Tente novamente mais tarde.
+        </MapDataNotice>
+      )}
+      {occurrencesFailed && (
+        <MapDataNotice>
+          <strong style={{ fontWeight: 600 }}>Não foi possível carregar as ocorrências.</strong> Os
+          pontos de apoio continuam visíveis. Tente novamente mais tarde.
+        </MapDataNotice>
+      )}
 
       <div className="relative" style={{ height: 540, background: "var(--surface-2)" }}>
         <ShelterMap
           filter={filter}
+          supportPoints={supportPoints}
           userPosition={userPosition}
           userAccuracy={coords?.accuracy ?? null}
           userSource={source}
           centerOnUserToken={centerToken}
+          occurrences={occurrences}
         />
         <Legend />
         <MapControls onLocate={handleLocate} locating={locating} />
@@ -142,6 +150,24 @@ function GeolocationNotice({ denied }: { denied: boolean }) {
       Mostrando o mapa centralizado em Recife. Algumas funções, como pontos próximos a você,
       dependem da sua localização — habilite-a nas permissões do navegador para uma experiência
       completa.
+    </div>
+  );
+}
+
+function MapDataNotice({ children }: { children: ReactNode }) {
+  return (
+    <div
+      role="alert"
+      style={{
+        padding: "10px 18px",
+        borderBottom: "1px solid var(--line-soft)",
+        background: "var(--emergency-soft)",
+        color: "var(--emergency-ink)",
+        fontSize: 12,
+        lineHeight: 1.45,
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -205,7 +231,7 @@ function Legend() {
     { color: "oklch(0.55 0.13 240)", label: "Abrigo" },
     { color: "oklch(0.62 0.19 25)", label: "Atendimento médico" },
     { color: "oklch(0.62 0.13 150)", label: "Distribuição de suprimentos" },
-    { color: "oklch(0.30 0.04 250)", label: "Área de risco" },
+    { color: "oklch(0.55 0.02 250)", label: "Outro ponto de apoio" },
   ];
   return (
     <div
