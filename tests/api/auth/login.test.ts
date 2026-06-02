@@ -16,7 +16,7 @@ vi.mock("@/lib/db", () => ({
 import { SignJWT } from "jose";
 import { POST } from "@/app/api/auth/login/route";
 import { hashPassword } from "@/lib/auth/password";
-import { verifyAuthToken } from "@/lib/auth/jwt";
+import { AUTH_COOKIE, verifyAuthToken } from "@/lib/auth/jwt";
 import { resetRateLimit } from "@/lib/auth/rate-limit";
 
 function makeRequest(body: unknown, ip = "127.0.0.1") {
@@ -51,7 +51,13 @@ describe("POST /api/auth/login", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.token).toEqual(expect.any(String));
+
+    // Token entregue só via cookie httpOnly, nunca no corpo legível por JS.
+    const cookie = res.cookies.get(AUTH_COOKIE);
+    expect(cookie?.value).toEqual(expect.any(String));
+    expect(cookie?.httpOnly).toBe(true);
+    expect(body.token).toBeUndefined();
+
     expect(body.user).toEqual({
       id: "user_123",
       email: "admin@rotasegura.local",
@@ -72,9 +78,10 @@ describe("POST /api/auth/login", () => {
     const res = await POST(
       makeRequest({ email: "admin@rotasegura.local", password: "CorrectHorseBattery!1" }),
     );
-    const { token } = await res.json();
+    const token = res.cookies.get(AUTH_COOKIE)?.value;
+    expect(token).toEqual(expect.any(String));
 
-    const payload = await verifyAuthToken(token);
+    const payload = await verifyAuthToken(token as string);
     expect(payload.sub).toBe("user_123");
     expect(payload.email).toBe("admin@rotasegura.local");
     expect(payload.role).toBe("ADMIN");

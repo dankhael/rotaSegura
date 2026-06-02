@@ -5,8 +5,9 @@ type LoginPayload = {
   password: string;
 };
 
+// O token chega em cookie httpOnly (Set-Cookie), inacessível ao JS; o corpo
+// devolve apenas os dados públicos do usuário.
 export type LoginResponse = {
-  token: string;
   user: {
     id: string;
     email: string;

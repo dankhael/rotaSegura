@@ -2,6 +2,10 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
 import { env } from "@/lib/env";
 
+// Nome do cookie httpOnly que carrega o JWT de sessão. Compartilhado entre o
+// endpoint de login e o middleware que protege o painel administrativo.
+export const AUTH_COOKIE = "token";
+
 export interface AuthTokenPayload extends JWTPayload {
   sub: string;
   email: string;
