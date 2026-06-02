@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { login, LoginError, type ApiFieldError } from "../../lib/login";
 
@@ -39,6 +40,7 @@ function toErrorMessage(error: LoginError): string {
 }
 
 export function LoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,7 +66,7 @@ export function LoginForm() {
       // Sucesso: o browser grava o cookie httpOnly automaticamente (Set-Cookie).
       await login({ email, password });
       setFeedback({ type: "success", message: "Login realizado com sucesso." });
-      // TODO: redirecionar para o painel quando a rota /admin existir.
+      router.push("/admin");
     } catch (error) {
       showError(error);
     } finally {
