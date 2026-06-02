@@ -5,25 +5,28 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "re
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-import {
-  MOCK_POINTS,
-  type MockPoint,
-  type MockPointKind,
-  type MockPointStatus,
-} from "@/components/home/map-mock-points";
+import { OccurrenceLayer } from "@/components/map/occurrence-layer";
+import type { Occurrence } from "@/types/occurrence";
+import type { SupportPoint, SupportPointType } from "@/types/support-point";
 
 export const RECIFE_CENTER: [number, number] = [-8.111, -34.905];
 export const DEFAULT_ZOOM = 13;
 const MAP_HEIGHT_CLASS = "h-[540px]";
 
-const KIND_GLYPH: Record<MockPointKind, string> = {
-  shelter: "🏠",
-  medical: "✚",
-  supply: "◆",
+// Estilo por tipo de ponto de apoio: classe CSS do pin (ver globals.css),
+// glyph exibido e rótulo em PT. OTHER usa um pin neutro.
+const SUPPORT_POINT_STYLE: Record<
+  SupportPointType,
+  { cssKind: string; glyph: string; label: string }
+> = {
+  SHELTER: { cssKind: "shelter", glyph: "🏠", label: "Abrigo" },
+  MEDICAL: { cssKind: "medical", glyph: "✚", label: "Atendimento médico" },
+  SUPPLY: { cssKind: "supply", glyph: "◆", label: "Distribuição de suprimentos" },
+  OTHER: { cssKind: "other", glyph: "●", label: "Ponto de apoio" },
 };
 
-function makePinIcon(kind: MockPointKind | "user", glyph?: string) {
-  if (kind === "user") {
+function makePinIcon(cssKind: string, glyph?: string) {
+  if (cssKind === "user") {
     return L.divIcon({
       className: "rs-pin",
       html: '<div class="rs-user-pin-pulse"><div class="rs-user-pin"></div></div>',
@@ -33,24 +36,12 @@ function makePinIcon(kind: MockPointKind | "user", glyph?: string) {
   }
   return L.divIcon({
     className: "rs-pin",
-    html: `<div class="rs-pin-wrap"><div class="rs-pin-bubble ${kind}"></div><div class="rs-pin-glyph">${glyph ?? ""}</div></div>`,
+    html: `<div class="rs-pin-wrap"><div class="rs-pin-bubble ${cssKind}"></div><div class="rs-pin-glyph">${glyph ?? ""}</div></div>`,
     iconSize: [28, 36],
     iconAnchor: [14, 34],
     popupAnchor: [0, -32],
   });
 }
-
-const STATUS_LABEL: Record<MockPointStatus, string> = {
-  open: "Aberto",
-  full: "Lotado",
-  partial: "Limitado",
-};
-
-const STATUS_STYLE: Record<MockPointStatus, { bg: string; fg: string }> = {
-  open: { bg: "var(--safe-soft)", fg: "var(--safe-ink)" },
-  full: { bg: "var(--emergency-soft)", fg: "var(--emergency-ink)" },
-  partial: { bg: "var(--warn-soft)", fg: "var(--warn-ink)" },
-};
 
 export type LatLng = { lat: number; lng: number };
 
@@ -60,7 +51,7 @@ type ShelterMapProps = {
   center?: [number, number];
   zoom?: number;
   onSelect?: (point: LatLng) => void;
-  filter?: "all" | MockPointKind;
+  filter?: "all" | SupportPointType;
   userPosition?: LatLng | null;
   userAccuracy?: number | null;
   userSource?: UserMarkerSource | null;
@@ -71,6 +62,10 @@ type ShelterMapProps = {
    */
   centerOnUserToken?: number;
   recenterZoom?: number;
+  /** Pontos de apoio (abrigos/médico/suprimentos) vindos da API. */
+  supportPoints?: SupportPoint[];
+  /** Ocorrências agregadas exibidas como camada agrupada sobre o mapa (US06). */
+  occurrences?: Occurrence[];
 };
 
 /**
@@ -135,11 +130,11 @@ function SelectedPointMarker({ onChange }: { onChange?: (point: LatLng) => void 
   );
 }
 
-function MockPointMarker({ point }: { point: MockPoint }) {
-  const status = STATUS_STYLE[point.status];
-  const icon = makePinIcon(point.kind, KIND_GLYPH[point.kind]);
+function SupportPointMarker({ point }: { point: SupportPoint }) {
+  const style = SUPPORT_POINT_STYLE[point.type] ?? SUPPORT_POINT_STYLE.OTHER;
+  const icon = makePinIcon(style.cssKind, style.glyph);
   return (
-    <Marker position={point.coords} icon={icon}>
+    <Marker position={[point.latitude, point.longitude]} icon={icon}>
       <Popup>
         <div style={{ padding: 14 }}>
           <div style={{ marginBottom: 8 }}>
@@ -151,11 +146,11 @@ function MockPointMarker({ point }: { point: MockPoint }) {
                 borderRadius: 4,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
-                background: status.bg,
-                color: status.fg,
+                background: "var(--surface-2)",
+                color: "var(--ink-2)",
               }}
             >
-              {STATUS_LABEL[point.status]}
+              {style.label}
             </span>
           </div>
           <div
@@ -169,51 +164,8 @@ function MockPointMarker({ point }: { point: MockPoint }) {
           >
             {point.name}
           </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: "var(--ink-3)",
-              margin: "0 0 10px",
-              lineHeight: 1.4,
-            }}
-          >
-            {point.addr}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              padding: "8px 0",
-              borderTop: "1px solid var(--line-soft)",
-              borderBottom: "1px solid var(--line-soft)",
-              marginBottom: 10,
-            }}
-          >
-            {point.stats.map((s) => (
-              <div key={s.l} style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  {s.n}
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--ink-3)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    marginTop: 1,
-                    fontWeight: 500,
-                  }}
-                >
-                  {s.l}
-                </div>
-              </div>
-            ))}
+          <div style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.4 }}>
+            {point.capacity != null ? `Capacidade: ${point.capacity}` : "Capacidade não informada"}
           </div>
         </div>
       </Popup>
@@ -239,12 +191,18 @@ export default function ShelterMap({
   userSource = null,
   centerOnUserToken = 0,
   recenterZoom = 14,
+  supportPoints = [],
+  occurrences = [],
 }: ShelterMapProps) {
   const visiblePoints =
-    filter === "all" ? MOCK_POINTS : MOCK_POINTS.filter((p) => p.kind === filter);
+    filter === "all" ? supportPoints : supportPoints.filter((p) => p.type === filter);
 
   return (
-    <div className={`${MAP_HEIGHT_CLASS} w-full overflow-hidden`}>
+    <div
+      role="region"
+      aria-label="Mapa de apoio e ocorrências"
+      className={`${MAP_HEIGHT_CLASS} w-full overflow-hidden`}
+    >
       <MapContainer
         center={center}
         zoom={zoom}
@@ -275,8 +233,9 @@ export default function ShelterMap({
           </Marker>
         )}
         {visiblePoints.map((p) => (
-          <MockPointMarker key={p.name} point={p} />
+          <SupportPointMarker key={p.id} point={p} />
         ))}
+        <OccurrenceLayer occurrences={occurrences} />
         <SelectedPointMarker onChange={onSelect} />
         <RecenterOnRequest position={userPosition} token={centerOnUserToken} zoom={recenterZoom} />
       </MapContainer>
