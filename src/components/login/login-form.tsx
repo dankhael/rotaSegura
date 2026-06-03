@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { login, LoginError, type ApiFieldError } from "../../lib/login";
+import { login, LoginError, type ApiFieldError } from "@/lib/login";
 
 import { TextInput } from "./text-input";
 import { SubmitButton } from "./submit-button";
@@ -17,6 +17,11 @@ type FieldErrors = {
 type FeedbackState = {
   type: "success" | "error" | null;
   message: string;
+};
+
+type LoginFormProps = {
+  /** Path para redirecionar após login bem-sucedido. Default `/admin`. */
+  nextUrl?: string;
 };
 
 const EMPTY_FIELD_ERRORS: FieldErrors = { email: "", password: "" };
@@ -52,7 +57,7 @@ function hasFieldErrors(errors: FieldErrors): boolean {
   return Boolean(errors.email || errors.password);
 }
 
-export function LoginForm() {
+export function LoginForm({ nextUrl = "/admin" }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,6 +83,7 @@ export function LoginForm() {
       setErrors(fieldErrors);
       return;
     }
+
     setErrors(EMPTY_FIELD_ERRORS);
     setIsSubmitting(true);
 
@@ -85,7 +91,7 @@ export function LoginForm() {
       // Sucesso: o browser grava o cookie httpOnly automaticamente (Set-Cookie).
       await login({ email, password });
       setFeedback({ type: "success", message: "Login realizado com sucesso." });
-      router.push("/admin");
+      router.push(nextUrl);
     } catch (error) {
       showError(error);
     } finally {
@@ -102,6 +108,7 @@ export function LoginForm() {
         onChange={setEmail}
         required
         autoComplete="email"
+        autoFocus
         error={errors.email}
       />
 

@@ -24,6 +24,8 @@ vi.mock("@/lib/login", () => ({
 import { LoginForm } from "@/components/login/login-form";
 import { LoginError } from "@/lib/login";
 
+// Acha os inputs pelo label visível (AC: a11y). `getByLabelText` falha se o
+// htmlFor/label estiver quebrado — teste mais fiel à navegação por teclado.
 function fill(email: string, password: string) {
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
   fireEvent.change(screen.getByLabelText("Senha"), { target: { value: password } });
@@ -39,6 +41,13 @@ describe("LoginForm", () => {
     loginMock.mockReset();
   });
 
+  it("renderiza inputs acessíveis com label (Email e Senha)", () => {
+    render(<LoginForm />);
+
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+  });
+
   it("redireciona para /admin após login com sucesso", async () => {
     loginMock.mockResolvedValue({ user: { id: "1", email: "admin@rs.com", role: "ADMIN" } });
 
@@ -47,6 +56,16 @@ describe("LoginForm", () => {
     submit();
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin"));
+  });
+
+  it("redireciona para o `nextUrl` informado após sucesso (preserva destino do middleware)", async () => {
+    loginMock.mockResolvedValue({ user: { id: "1", email: "admin@rs.com", role: "ADMIN" } });
+
+    render(<LoginForm nextUrl="/admin/usuarios" />);
+    fill("admin@rs.com", "secret");
+    submit();
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/usuarios"));
   });
 
   it("mostra erro e não redireciona quando o login falha", async () => {
@@ -60,7 +79,8 @@ describe("LoginForm", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  // AC4: campos vazios não disparam requisição (não consome o rate-limit).
+  // AC4: campos vazios não disparam requisição (não consome o rate-limit) e
+  // o input ganha aria-invalid p/ leitor de tela.
   it("não chama a API e exibe erros quando os campos estão vazios", async () => {
     render(<LoginForm />);
     submit();
@@ -68,16 +88,14 @@ describe("LoginForm", () => {
     expect(await screen.findByText("Informe o email.")).toBeInTheDocument();
     expect(screen.getByText("Informe a senha.")).toBeInTheDocument();
     expect(loginMock).not.toHaveBeenCalled();
+
+    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
   });
 
-  // AC8: indicador de carregamento durante o submit.
+  // AC8: indicador de carregamento durante o submit (aria-busy + disabled).
   it("desabilita o botão e mostra 'Entrando...' durante o submit", async () => {
     let resolveLogin: (value: unknown) => void = () => {};
-    loginMock.mockReturnValue(
-      new Promise((resolve) => {
-        resolveLogin = resolve;
-      }),
-    );
+    loginMock.mockImplementation(() => new Promise((resolve) => (resolveLogin = resolve)));
 
     render(<LoginForm />);
     fill("admin@rs.com", "secret");
@@ -85,6 +103,7 @@ describe("LoginForm", () => {
 
     const button = await screen.findByRole("button", { name: /entrando/i });
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
 
     resolveLogin({ user: { id: "1", email: "admin@rs.com", role: "ADMIN" } });
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin"));

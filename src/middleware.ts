@@ -11,7 +11,8 @@ async function isAdmin(token: string): Promise<boolean> {
   }
 }
 
-// Protege o painel: sem cookie httpOnly de ADMIN válido, redireciona ao /login.
+// Protege o painel: sem cookie httpOnly de ADMIN válido, redireciona ao /login
+// preservando a rota original em `?next=` para o post-login voltar ao destino.
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE)?.value;
 
@@ -19,7 +20,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return NextResponse.redirect(new URL("/login", request.url));
+  const loginUrl = new URL("/login", request.url);
+  const original = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  loginUrl.searchParams.set("next", original);
+
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

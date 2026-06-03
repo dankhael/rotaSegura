@@ -56,6 +56,9 @@ describe("POST /api/auth/login", () => {
     const cookie = res.cookies.get(AUTH_COOKIE);
     expect(cookie?.value).toEqual(expect.any(String));
     expect(cookie?.httpOnly).toBe(true);
+    // maxAge alinhado com JWT_EXPIRES_IN — cookie expira junto com o token.
+    expect(cookie?.maxAge).toBeGreaterThan(0);
+    expect(cookie?.sameSite).toBe("lax");
     expect(body.token).toBeUndefined();
 
     expect(body.user).toEqual({

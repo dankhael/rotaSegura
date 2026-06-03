@@ -4,6 +4,11 @@ type Props = {
   loading: boolean;
 };
 
+/**
+ * Botão primário do formulário de login. Usa o token `--ink` (mesma paleta da
+ * ação primária do `MapCard`) — `--emergency` é reservado para SOS e passava
+ * a leitura semântica errada num botão de "Entrar".
+ */
 export function SubmitButton({ loading }: Props) {
   return (
     <button

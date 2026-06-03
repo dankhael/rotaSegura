@@ -6,25 +6,33 @@ type Props = {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
-  error?: string;
   type?: string;
+  error?: string;
   required?: boolean;
   autoComplete?: string;
+  autoFocus?: boolean;
+  placeholder?: string;
 };
 
+/**
+ * Input com label visível e mensagem de erro acessível (`aria-invalid` +
+ * `aria-describedby`). Label visível > placeholder porque o placeholder some
+ * ao digitar, tem contraste baixo e é inconsistente em leitores de tela.
+ */
 export function TextInput({
   label,
   value,
   onChange,
-  placeholder,
-  error,
   type = "text",
+  error,
   required = false,
   autoComplete,
+  autoFocus,
+  placeholder,
 }: Props) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
+  const hasError = Boolean(error);
 
   return (
     <div className="flex flex-col gap-2">
@@ -40,8 +48,9 @@ export function TextInput({
         placeholder={placeholder}
         required={required}
         autoComplete={autoComplete}
-        aria-invalid={!!error}
-        aria-describedby={error ? errorId : undefined}
+        autoFocus={autoFocus}
+        aria-invalid={hasError}
+        aria-describedby={hasError ? errorId : undefined}
         className="
           h-13
           w-full
@@ -52,13 +61,16 @@ export function TextInput({
           text-sm
           text-(--ink)
           outline-none
+          focus-visible:ring-2
+          focus-visible:ring-(--ink)
+          focus-visible:ring-offset-2
         "
         style={{
-          borderColor: error ? "#ef4444" : "rgba(255,255,255,0.10)",
+          borderColor: hasError ? "#ef4444" : "rgba(255,255,255,0.10)",
         }}
       />
 
-      {error && (
+      {hasError && (
         <p id={errorId} role="alert" className="text-sm text-red-500">
           {error}
         </p>

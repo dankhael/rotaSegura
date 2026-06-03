@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
-import { env } from "@/lib/env";
 import {
   badRequest,
   forbidden,
@@ -10,9 +9,10 @@ import {
   tooManyRequests,
   unauthorized,
 } from "@/lib/api-response";
-import { AUTH_COOKIE, signAuthToken } from "@/lib/auth/jwt";
+import { signAuthToken } from "@/lib/auth/jwt";
 import { verifyPassword } from "@/lib/auth/password";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
+import { setSessionCookie } from "@/lib/auth/session";
 import { UserRoleSchema, loginSchema, type UserRole } from "@/lib/validations/auth";
 
 const RATE_LIMIT = { windowMs: 60_000, max: 5 };
@@ -97,12 +97,7 @@ export async function POST(request: NextRequest) {
 
     // Token só via cookie httpOnly: inacessível ao JS, mitiga roubo por XSS.
     const response = NextResponse.json({ user: { id, email, role } });
-    response.cookies.set(AUTH_COOKIE, token, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
+    setSessionCookie(response, token);
     return response;
   } catch (err) {
     console.error("[POST /api/auth/login]", err);
