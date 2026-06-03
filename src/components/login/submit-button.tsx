@@ -9,6 +9,7 @@ export function SubmitButton({ loading }: Props) {
     <button
       type="submit"
       disabled={loading}
+      aria-busy={loading}
       className="
         mt-2
         h-13
@@ -16,9 +17,12 @@ export function SubmitButton({ loading }: Props) {
         font-bold
         text-white
         transition-all
+        disabled:cursor-not-allowed
+        disabled:opacity-60
       "
       style={{
-        background: "var(--emergency)",
+        // --ink é o token de ação primária; --emergency é reservado p/ SOS.
+        background: "var(--ink)",
       }}
     >
       {loading ? "Entrando..." : "Entrar"}

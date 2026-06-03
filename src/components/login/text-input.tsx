@@ -1,21 +1,47 @@
 "use client";
 
+import { useId } from "react";
+
 type Props = {
+  label: string;
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  placeholder?: string;
   error?: string;
   type?: string;
+  required?: boolean;
+  autoComplete?: string;
 };
 
-export function TextInput({ value, onChange, placeholder, error, type = "text" }: Props) {
+export function TextInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  error,
+  type = "text",
+  required = false,
+  autoComplete,
+}: Props) {
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
+
   return (
     <div className="flex flex-col gap-2">
+      <label htmlFor={inputId} className="text-sm font-medium text-(--ink-2)">
+        {label}
+      </label>
+
       <input
+        id={inputId}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+        aria-invalid={!!error}
+        aria-describedby={error ? errorId : undefined}
         className="
           h-13
           w-full
@@ -32,7 +58,11 @@ export function TextInput({ value, onChange, placeholder, error, type = "text" }
         }}
       />
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && (
+        <p id={errorId} role="alert" className="text-sm text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

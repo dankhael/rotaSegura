@@ -229,7 +229,7 @@ curl -s "localhost:3000/api/occurrences/$OCC/reports"
 
 ### `POST /api/auth/login`
 
-Autentica um administrador previamente provisionado e devolve um JWT (HS256, expiração padrão de 1h).
+Autentica um administrador previamente provisionado e emite um JWT (HS256, expiração padrão de 1h) em um **cookie `httpOnly`**.
 
 **Request:**
 
@@ -245,14 +245,21 @@ Content-Type: application/json
 
 **Response 200:**
 
+Define o cookie `httpOnly` `token` (via `Set-Cookie`) e devolve no corpo apenas os dados públicos do usuário — o token **não** trafega no JSON:
+
+```http
+HTTP/1.1 200 OK
+Set-Cookie: token=eyJhbGciOiJIUzI1NiIs...; Path=/; HttpOnly; SameSite=Lax
+Content-Type: application/json
+```
+
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
   "user": { "id": "ck...", "email": "admin@rotasegura.local", "role": "ADMIN" }
 }
 ```
 
-O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Verifique-o nas rotas protegidas com `verifyAuthToken` de [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts).
+O cookie `token` (nome exportado como `AUTH_COOKIE` em [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts)) carrega o JWT com as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Como é `httpOnly`, não é acessível por JavaScript (mitiga roubo por XSS); em produção também recebe a flag `Secure`. Verifique-o nas rotas protegidas com `verifyAuthToken`.
 
 **Erros:**
 
@@ -265,12 +272,18 @@ O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`
 
 **Provisionar o admin:** `npm run db:seed` lê `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do `.env`, hasheia a senha com bcrypt (custo 12) e faz `upsert`.
 
+### Telas e proteção de rotas
+
+- `/login` — formulário de login (email + senha com `<label>`, validação client-side de campos vazios e feedback de erro/sucesso). No sucesso, redireciona para `/admin`.
+- `/admin` — painel administrativo com abas **Dashboard** e **Gestão de Locais** (placeholders para sprints futuras).
+- **Proteção:** [`src/middleware.ts`](src/middleware.ts) intercepta `/admin/:path*` e, sem o cookie `token` de um usuário `ADMIN` válido, redireciona para `/login`. A verificação do JWT usa `jose` (compatível com edge).
+
 > ⚠️ O rate limiter atual é **in-memory** (Map no processo). Funciona em dev e em deploys single-instance, mas não compartilha estado entre lambdas serverless. Para Vercel/multi-instância, migrar para Upstash Redis (`@upstash/ratelimit`).
 
 **Follow-ups conhecidos (não bloqueiam a US02):**
 
 - Rate limit hoje só pega IP. Um atacante com botnet/proxies residenciais pode brute-forçar um e-mail específico sem bater o limite. Adicionar bucket `login-email:${email}` com janela maior quando entrar mais carga.
-- Token volta no response body, não em cookie `httpOnly`. Funciona pro frontend inicial; quando a RS-US05 entrar em produção, considerar trocar pra cookie `httpOnly` + `SameSite=Strict` + CSRF token (sem breaking change na API).
+- Token é entregue em cookie `httpOnly` + `SameSite=Lax` (+ `Secure` em prod). Ainda **sem CSRF token** — com `SameSite=Lax` o risco em POST cross-site é baixo, mas avaliar um token CSRF quando o painel admin expuser formulários de mutação. O cookie hoje é de sessão (sem `Max-Age`); o JWT expira em 1h de qualquer forma.
 - `bcryptjs` é puro-JS (~250ms/hash custo 12). Como o handler força `runtime = "nodejs"`, daria pra usar `bcrypt` nativo (~50ms). Pra login admin a latência não importa; o JS puro simplifica deploy. Avaliar troca se a auth virar gargalo.
 - `getClientIp` assume proxy confiável (Vercel/Cloudflare) reescrevendo `x-vercel-forwarded-for`/`x-forwarded-for`. Sem proxy, o header é forjável e o rate limit por IP perde garantia.
 

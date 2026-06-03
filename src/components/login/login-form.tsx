@@ -39,6 +39,19 @@ function toErrorMessage(error: LoginError): string {
   return error.message;
 }
 
+// AC4: bloqueia o envio com campos vazios antes de bater o endpoint — poupa a
+// requisição e não consome uma tentativa do rate-limit por IP.
+function validateFields(email: string, password: string): FieldErrors {
+  return {
+    email: email.trim() ? "" : "Informe o email.",
+    password: password.trim() ? "" : "Informe a senha.",
+  };
+}
+
+function hasFieldErrors(errors: FieldErrors): boolean {
+  return Boolean(errors.email || errors.password);
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -59,6 +72,12 @@ export function LoginForm() {
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFeedback({ type: null, message: "" });
+
+    const fieldErrors = validateFields(email, password);
+    if (hasFieldErrors(fieldErrors)) {
+      setErrors(fieldErrors);
+      return;
+    }
     setErrors(EMPTY_FIELD_ERRORS);
     setIsSubmitting(true);
 
@@ -75,20 +94,24 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleLogin} className="flex flex-col gap-4">
+    <form onSubmit={handleLogin} noValidate className="flex flex-col gap-4">
       <TextInput
+        label="Email"
         type="email"
         value={email}
         onChange={setEmail}
-        placeholder="Email"
+        required
+        autoComplete="email"
         error={errors.email}
       />
 
       <TextInput
+        label="Senha"
         type="password"
         value={password}
         onChange={setPassword}
-        placeholder="Senha"
+        required
+        autoComplete="current-password"
         error={errors.password}
       />
 
