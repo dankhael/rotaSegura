@@ -229,7 +229,7 @@ curl -s "localhost:3000/api/occurrences/$OCC/reports"
 
 ### `POST /api/auth/login`
 
-Autentica um administrador previamente provisionado e devolve um JWT (HS256, expiração padrão de 1h).
+Autentica um administrador previamente provisionado. O JWT (HS256, expiração padrão de 1h) é entregue **em cookie `httpOnly`** (`Set-Cookie: token=...`) — inacessível ao JS, mitiga roubo via XSS.
 
 **Request:**
 
@@ -245,14 +245,21 @@ Content-Type: application/json
 
 **Response 200:**
 
+Define o cookie `httpOnly` `token` (via `Set-Cookie`) e devolve no corpo apenas os dados públicos do usuário — o token **não** trafega no JSON:
+
+```http
+HTTP/1.1 200 OK
+Set-Cookie: token=eyJhbGciOiJIUzI1NiIs...; Path=/; HttpOnly; SameSite=Lax
+Content-Type: application/json
+```
+
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
   "user": { "id": "ck...", "email": "admin@rotasegura.local", "role": "ADMIN" }
 }
 ```
 
-O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Verifique-o nas rotas protegidas com `verifyAuthToken` de [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts).
+O cookie `token` (nome exportado como `AUTH_COOKIE` em [`src/lib/auth/jwt.ts`](src/lib/auth/jwt.ts)) carrega o JWT com as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`. Como é `httpOnly`, não é acessível por JavaScript (mitiga roubo por XSS); em produção também recebe a flag `Secure`. O `Max-Age` é alinhado a `JWT_EXPIRES_IN` via [`parseExpiryToSeconds`](src/lib/auth/session.ts) — cookie expira junto com o token. Verifique o JWT nas rotas protegidas com `verifyAuthToken`.
 
 **Erros:**
 
@@ -263,14 +270,28 @@ O token contém as claims `sub` (id do usuário), `email`, `role`, `iat` e `exp`
 | 403    | `role !== "ADMIN"` (mensagem genérica, não diferencia de credenciais inválidas) |
 | 429    | Mais de 5 tentativas no mesmo IP em 1 minuto (cabeçalho `Retry-After` enviado)  |
 
+### `POST /api/auth/logout`
+
+Apaga o cookie `token` (`Max-Age=0`). Sempre **204**, idempotente — chamar sem cookie é no-op intencional. Necessário porque o JS no client não consegue limpar cookies `httpOnly` por conta própria.
+
+### Painel admin protegido (`/admin/*`)
+
+O [middleware](src/middleware.ts) com `matcher: ["/admin/:path*"]` valida o cookie `token` em toda request para `/admin/*`. Se inválido/expirado/role≠ADMIN, redireciona para `/login?next=<rota-original>` (a `LoginForm` usa `next` para retornar o usuário ao destino após autenticar). `next` é sanitizado em [`src/app/login/page.tsx`](src/app/login/page.tsx) para evitar open redirect.
+
 **Provisionar o admin:** `npm run db:seed` lê `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do `.env`, hasheia a senha com bcrypt (custo 12) e faz `upsert`.
+
+### Telas e proteção de rotas
+
+- `/login` — formulário de login (email + senha com `<label>`, validação client-side de campos vazios e feedback de erro/sucesso). No sucesso, redireciona para `/admin` ou para a rota recebida em `?next=` (sanitizada — só paths internos).
+- `/admin` — painel administrativo com abas **Dashboard** e **Gestão de Locais** (placeholders para sprints futuras). Header inclui botão **Sair** que chama `POST /api/auth/logout` e volta para `/login`.
+- **Proteção:** [`src/middleware.ts`](src/middleware.ts) intercepta `/admin/:path*` e, sem o cookie `token` de um usuário `ADMIN` válido, redireciona para `/login?next=<rota-original>`. A verificação do JWT usa `jose` (compatível com edge).
 
 > ⚠️ O rate limiter atual é **in-memory** (Map no processo). Funciona em dev e em deploys single-instance, mas não compartilha estado entre lambdas serverless. Para Vercel/multi-instância, migrar para Upstash Redis (`@upstash/ratelimit`).
 
-**Follow-ups conhecidos (não bloqueiam a US02):**
+**Follow-ups conhecidos:**
 
 - Rate limit hoje só pega IP. Um atacante com botnet/proxies residenciais pode brute-forçar um e-mail específico sem bater o limite. Adicionar bucket `login-email:${email}` com janela maior quando entrar mais carga.
-- Token volta no response body, não em cookie `httpOnly`. Funciona pro frontend inicial; quando a RS-US05 entrar em produção, considerar trocar pra cookie `httpOnly` + `SameSite=Strict` + CSRF token (sem breaking change na API).
+- Token é entregue em cookie `httpOnly` + `SameSite=Lax` (+ `Secure` em prod). Ainda **sem CSRF token** — com `SameSite=Lax` o risco em POST cross-site é baixo, mas avaliar um token CSRF quando o painel admin expuser formulários de mutação.
 - `bcryptjs` é puro-JS (~250ms/hash custo 12). Como o handler força `runtime = "nodejs"`, daria pra usar `bcrypt` nativo (~50ms). Pra login admin a latência não importa; o JS puro simplifica deploy. Avaliar troca se a auth virar gargalo.
 - `getClientIp` assume proxy confiável (Vercel/Cloudflare) reescrevendo `x-vercel-forwarded-for`/`x-forwarded-for`. Sem proxy, o header é forjável e o rate limit por IP perde garantia.
 

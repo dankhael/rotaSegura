@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function TopBar() {
   return (
     <header
@@ -56,6 +58,51 @@ export function TopBar() {
       <div className="flex-1" />
 
       <div className="flex items-center gap-2">
+        <Link href="/login">
+          <button
+            type="button"
+            aria-label="Entrar"
+            title="Entrar"
+            className="
+              flex items-center justify-center gap-2
+              h-10 px-4
+              rounded-xl
+              border border-white/10
+              bg-white/5
+              text-sm font-semibold
+              text-(--ink)
+              backdrop-blur-md
+              shadow-sm
+              transition-all duration-200
+              hover:bg-white/10
+              hover:shadow-md
+              active:scale-[0.98]
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-emergency
+              focus-visible:ring-offset-2
+              focus-visible:ring-offset-background
+            "
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+            >
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+
+            <span>Entrar</span>
+          </button>
+        </Link>
         <button
           type="button"
           aria-label="Ajuda"
