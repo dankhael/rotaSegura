@@ -2,29 +2,27 @@
 
 import { useState } from "react";
 
-import { cn } from "@/lib/utils";
 import { OccurrenceDashboard } from "@/components/admin/dashboard/occurrence-dashboard";
+import { SupportPointsPanel } from "@/components/admin/support-points-panel";
+import { cn } from "@/lib/utils";
 
 type TabId = "dashboard" | "locais";
 
 type AdminTab = {
   id: TabId;
   label: string;
-  placeholder: string;
 };
 
-// "Dashboard" já é o resumo de ocorrências (US10); demais abas seguem placeholder
-// até receberem sua implementação em PRs futuras.
+// "Dashboard" é o resumo de ocorrências (US10) e "Gestão de Locais" administra os
+// pontos de apoio; novas abas podem ser adicionadas aqui conforme forem criadas.
 const ADMIN_TABS: AdminTab[] = [
   {
     id: "dashboard",
     label: "Dashboard",
-    placeholder: "Indicadores e visão geral chegam aqui em breve.",
   },
   {
     id: "locais",
     label: "Gestão de Locais",
-    placeholder: "Cadastro e edição dos pontos de apoio chegam aqui em breve.",
   },
 ];
 
@@ -62,7 +60,7 @@ export function AdminTabs() {
             (tab.id === "dashboard" ? (
               <OccurrenceDashboard />
             ) : (
-              <PlaceholderPanel title={tab.label} message={tab.placeholder} />
+              <SupportPointsPanel />
             ))}
         </div>
       ))}
@@ -93,39 +91,5 @@ function TabButton({ tab, isActive, onSelect }: TabButtonProps) {
     >
       {tab.label}
     </button>
-  );
-}
-
-function PlaceholderPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <div
-      className="grid place-items-center px-6 py-16 text-center"
-      style={{
-        background: "var(--surface)",
-        border: "1px dashed var(--line)",
-        borderRadius: "var(--r-lg)",
-      }}
-    >
-      <div>
-        <h2 className="font-bold" style={{ fontSize: 18, color: "var(--ink-2)" }}>
-          {title}
-        </h2>
-        <p className="mt-1.5" style={{ fontSize: 14, color: "var(--ink-3)" }}>
-          {message}
-        </p>
-        <span
-          className="mt-4 inline-block px-2.5 py-1 text-xs font-semibold uppercase"
-          style={{
-            background: "var(--surface-2)",
-            border: "1px solid var(--line)",
-            borderRadius: "var(--r-sm)",
-            color: "var(--ink-4)",
-            letterSpacing: "0.04em",
-          }}
-        >
-          Em construção
-        </span>
-      </div>
-    </div>
   );
 }
