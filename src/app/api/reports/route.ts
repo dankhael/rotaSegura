@@ -4,8 +4,10 @@ import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { badRequest, fromZodError, internalError } from "@/lib/api-response";
 import { clusterReport } from "@/lib/occurrences/cluster";
+import { sendPushToNearbyUsers } from "@/lib/notifications/dispatch";
 import { type RawReport, toReport } from "@/lib/reports/serialize";
 import { createReportSchema, reportListQuerySchema } from "@/lib/validations/report";
+import type { Occurrence } from "@/types/occurrence";
 import type { Report } from "@/types/report";
 import type { PaginatedResponse } from "@/types/support-point";
 
@@ -58,6 +60,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Envoltório que isola exceções de push: Promise não-aguardada não deve
+// escapar para o handler. CLAUDE.md §"Exception messages" — logamos com contexto.
+function notifyNearby(occurrence: Occurrence): Promise<void> {
+  return sendPushToNearbyUsers(occurrence)
+    .then(() => undefined)
+    .catch((err: unknown) => {
+      console.error("[notifyNearby] occurrenceId=" + occurrence.id, err);
+    });
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: unknown;
@@ -95,6 +107,13 @@ export async function POST(request: NextRequest) {
         ),
       { isolationLevel: "ReadCommitted", timeout: 5000 },
     );
+
+    // RS-TK04: dispara push para vizinhos quando uma ocorrência nasce ou é
+    // promovida a CONFIRMED. Fire-and-forget — AC-09 exige que falha no envio
+    // não bloqueie a resposta nem aborte o salvamento.
+    if (result.created || result.promoted) {
+      void notifyNearby(result.occurrence);
+    }
 
     // 200 idempotente quando deviceId já estava na ocorrência; 201 caso novo report.
     const status = result.duplicateDevice ? 200 : 201;
