@@ -17,6 +17,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:occurrences": "tsx prisma/seed-occurrences.ts",
     "format": "prettier --write .",
     "postinstall": "prisma generate",
     "prepare": "husky"

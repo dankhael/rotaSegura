@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { OccurrenceDashboard } from "@/components/admin/dashboard/occurrence-dashboard";
 
 type TabId = "dashboard" | "locais";
 
@@ -12,7 +13,8 @@ type AdminTab = {
   placeholder: string;
 };
 
-// Abas placeholder — cada seção recebe sua implementação em PRs futuras.
+// "Dashboard" já é o resumo de ocorrências (US10); demais abas seguem placeholder
+// até receberem sua implementação em PRs futuras.
 const ADMIN_TABS: AdminTab[] = [
   {
     id: "dashboard",
@@ -56,7 +58,12 @@ export function AdminTabs() {
           hidden={tab.id !== activeId}
           className="mt-6"
         >
-          {tab.id === activeId && <PlaceholderPanel title={tab.label} message={tab.placeholder} />}
+          {tab.id === activeId &&
+            (tab.id === "dashboard" ? (
+              <OccurrenceDashboard />
+            ) : (
+              <PlaceholderPanel title={tab.label} message={tab.placeholder} />
+            ))}
         </div>
       ))}
     </section>

@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { AUTH_COOKIE, verifyAuthToken } from "@/lib/auth/jwt";
-
-async function isAdmin(token: string): Promise<boolean> {
-  try {
-    const payload = await verifyAuthToken(token);
-    return payload.role === "ADMIN";
-  } catch {
-    return false;
-  }
-}
+import { isAdminRequest } from "@/lib/auth/admin-guard";
 
 // Protege o painel: sem cookie httpOnly de ADMIN válido, redireciona ao /login
 // preservando a rota original em `?next=` para o post-login voltar ao destino.
 export async function middleware(request: NextRequest) {
-  const token = request.cookies.get(AUTH_COOKIE)?.value;
-
-  if (token && (await isAdmin(token))) {
+  if (await isAdminRequest(request)) {
     return NextResponse.next();
   }
 
