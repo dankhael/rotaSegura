@@ -2,36 +2,19 @@ import { Marker, Popup } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import type { Occurrence, OccurrenceStatus, OccurrenceType } from "@/types/occurrence";
-
-// AC2: cor distinta por categoria. Os 6 valores espelham OccurrenceType
-// (src/lib/validations/occurrence.ts) — manter em sincronia ao alterar o enum.
-const CATEGORY_COLOR: Record<OccurrenceType, string> = {
-  FLOOD: "#2563eb",
-  FIRE: "#dc2626",
-  LANDSLIDE: "#a16207",
-  ACCIDENT: "#7c3aed",
-  OBSTRUCTION: "#ea580c",
-  OTHER: "#6b7280",
-};
-
-const TYPE_LABEL: Record<OccurrenceType, string> = {
-  FLOOD: "Alagamento",
-  FIRE: "Incêndio",
-  LANDSLIDE: "Deslizamento",
-  ACCIDENT: "Acidente",
-  OBSTRUCTION: "Obstrução",
-  OTHER: "Outro",
-};
-
-const STATUS_LABEL: Record<OccurrenceStatus, string> = {
-  PENDING: "Pendente",
-  CONFIRMED: "Confirmada",
-};
+import {
+  OCCURRENCE_STATUS_LABEL,
+  OCCURRENCE_TYPE_LABEL,
+  SEVERITY_LABEL,
+  SEVERITY_TONE,
+} from "@/lib/occurrences/labels";
+import { occurrenceSeverity } from "@/lib/occurrences/severity";
+import { OCCURRENCE_TYPE_COLOR } from "@/lib/occurrences/type-visuals";
 
 // AC3: confirmadas têm preenchimento sólido e borda contínua; pendentes ficam
 // translúcidas com borda tracejada — diferenciação visual de status.
 function getOccurrenceIcon(type: OccurrenceType, status: OccurrenceStatus) {
-  const color = CATEGORY_COLOR[type] ?? CATEGORY_COLOR.OTHER;
+  const color = OCCURRENCE_TYPE_COLOR[type] ?? OCCURRENCE_TYPE_COLOR.OTHER;
   const confirmed = status === "CONFIRMED";
   const border = confirmed ? "3px solid #fff" : "2px dashed #fff";
   const style = `background-color:${color};opacity:${confirmed ? 1 : 0.55};width:14px;height:14px;border-radius:50%;border:${border};box-shadow:0 0 4px rgba(0,0,0,0.3)`;
@@ -44,15 +27,37 @@ function getOccurrenceIcon(type: OccurrenceType, status: OccurrenceStatus) {
 }
 
 function OccurrenceMarker({ occurrence }: { occurrence: Occurrence }) {
+  // Gravidade derivada (US10 v2) — não há campo no modelo; ver lib/occurrences/severity.ts.
+  const severity = occurrenceSeverity({
+    type: occurrence.type,
+    status: occurrence.status,
+    reportCount: occurrence.reportCount,
+    uniqueDeviceCount: occurrence.uniqueDeviceCount,
+  });
+  const tone = SEVERITY_TONE[severity];
+
   return (
     <Marker
       position={[occurrence.centroidLatitude, occurrence.centroidLongitude]}
       icon={getOccurrenceIcon(occurrence.type, occurrence.status)}
     >
       <Popup>
-        <strong>{TYPE_LABEL[occurrence.type]}</strong>
+        <strong>{OCCURRENCE_TYPE_LABEL[occurrence.type]}</strong>{" "}
+        <span
+          style={{
+            background: tone.background,
+            border: `1px solid ${tone.border}`,
+            color: tone.ink,
+            borderRadius: 6,
+            padding: "0 6px",
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+        >
+          {SEVERITY_LABEL[severity]}
+        </span>
         <br />
-        {STATUS_LABEL[occurrence.status]} · {occurrence.reportCount} relato(s)
+        {OCCURRENCE_STATUS_LABEL[occurrence.status]} · {occurrence.reportCount} relato(s)
         <br />
         Último relato: {new Date(occurrence.lastReportedAt).toLocaleString("pt-BR")}
       </Popup>

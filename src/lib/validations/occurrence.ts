@@ -37,3 +37,17 @@ export const occurrenceListQuerySchema = paginationSchema.extend({
 });
 
 export type OccurrenceListQuery = z.infer<typeof occurrenceListQuerySchema>;
+
+export const DashboardPeriodSchema = z.enum(["today", "7d", "30d"], {
+  errorMap: () => ({ message: "period deve ser today, 7d ou 30d" }),
+});
+
+// Dashboard admin (US10): filtros + período (janela de datas), sem paginação —
+// o resumo agrega tudo. `period` tem default para o resumo nunca vir sem janela.
+export const occurrenceSummaryQuerySchema = z.object({
+  status: OccurrenceStatusSchema.optional(),
+  type: OccurrenceTypeSchema.optional(),
+  period: DashboardPeriodSchema.default("7d"),
+});
+
+export type OccurrenceSummaryQuery = z.infer<typeof occurrenceSummaryQuerySchema>;
