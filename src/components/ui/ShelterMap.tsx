@@ -66,6 +66,13 @@ type ShelterMapProps = {
   supportPoints?: SupportPoint[];
   /** Ocorrências agregadas exibidas como camada agrupada sobre o mapa (US06). */
   occurrences?: Occurrence[];
+  /**
+   * Ponto arbitrário para focar quando `focusToken` muda. Usado pelo deep-link
+   * de notificação push (RS-TK04) — o SW redireciona para `/?lat=&lng=` e a
+   * home converte isso em uma chamada de pan único.
+   */
+  focusPoint?: LatLng | null;
+  focusToken?: number;
 };
 
 /**
@@ -193,6 +200,8 @@ export default function ShelterMap({
   recenterZoom = 14,
   supportPoints = [],
   occurrences = [],
+  focusPoint = null,
+  focusToken = 0,
 }: ShelterMapProps) {
   const visiblePoints =
     filter === "all" ? supportPoints : supportPoints.filter((p) => p.type === filter);
@@ -238,6 +247,7 @@ export default function ShelterMap({
         <OccurrenceLayer occurrences={occurrences} />
         <SelectedPointMarker onChange={onSelect} />
         <RecenterOnRequest position={userPosition} token={centerOnUserToken} zoom={recenterZoom} />
+        <RecenterOnRequest position={focusPoint} token={focusToken} zoom={recenterZoom} />
       </MapContainer>
     </div>
   );

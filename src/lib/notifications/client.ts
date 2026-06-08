@@ -21,7 +21,12 @@ export function getPermission(): NotificationPermission | "unsupported" {
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) return null;
-  return navigator.serviceWorker.register(SW_URL, { scope: "/" });
+  await navigator.serviceWorker.register(SW_URL, { scope: "/" });
+  // register() resolve assim que o SW é descoberto, ainda em "installing". Mas
+  // pushManager.subscribe exige um worker já em "active" — senão estoura
+  // AbortError: "no active Service Worker". serviceWorker.ready só resolve
+  // quando há um registration com worker ativo controlando o escopo.
+  return navigator.serviceWorker.ready;
 }
 
 // VAPID public key precisa ser convertida de base64url → Uint8Array antes de

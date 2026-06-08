@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
@@ -43,11 +43,30 @@ export function MapCard() {
   const fallbackVisible = status === "denied" || status === "unavailable";
   const locating = status === "prompting";
   const [centerToken, setCenterToken] = useState(0);
+  const [focusPoint, setFocusPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [focusToken, setFocusToken] = useState(0);
 
   const userPosition = useMemo(
     () => (coords ? { lat: coords.lat, lng: coords.lng } : null),
     [coords],
   );
+
+  // Deep-link da notificação push (RS-TK04): o SW navega para /?lat=&lng=
+  // (ver public/sw.js → notificationclick). Lemos via window.location no mount
+  // em vez de useSearchParams — o hook exigiria envolver a página em Suspense,
+  // e essa leitura é one-shot. Mesmo padrão de set-state-in-effect que o
+  // PushPermissionCard usa: a fonte é só-cliente, então precisa rodar pós-mount.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const lat = Number(params.get("lat"));
+    const lng = Number(params.get("lng"));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setFocusPoint({ lat, lng });
+      setFocusToken((t) => t + 1);
+    }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // The button always asks for a fresh fix and asks the map to recenter.
   // RecenterOnRequest holds the request until coords appear, so a click
@@ -123,6 +142,8 @@ export function MapCard() {
           userSource={source}
           centerOnUserToken={centerToken}
           occurrences={occurrences}
+          focusPoint={focusPoint}
+          focusToken={focusToken}
         />
         <Legend />
         <MapControls onLocate={handleLocate} locating={locating} />

@@ -108,10 +108,12 @@ export async function POST(request: NextRequest) {
       { isolationLevel: "ReadCommitted", timeout: 5000 },
     );
 
-    // RS-TK04: dispara push para vizinhos quando uma ocorrência nasce ou é
-    // promovida a CONFIRMED. Fire-and-forget — AC-09 exige que falha no envio
-    // não bloqueie a resposta nem aborte o salvamento.
-    if (result.created || result.promoted) {
+    // RS-TK04: dispara push para vizinhos só quando a ocorrência é promovida
+    // (PENDING → CONFIRMED). Notificar em criação PENDING geraria alertas a
+    // partir de relatos isolados, ainda não validados pelo threshold de US06.
+    // Fire-and-forget — AC-09 exige que falha no envio não bloqueie a resposta
+    // nem aborte o salvamento.
+    if (result.promoted) {
       void notifyNearby(result.occurrence);
     }
 

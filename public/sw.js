@@ -58,10 +58,16 @@ self.addEventListener("notificationclick", (event) => {
         type: "window",
         includeUncontrolled: true,
       });
+      // Tenta navegar uma aba existente para a URL com deep-link: a navegação
+      // remonta a página e a home lê os params lat/lng. client.navigate() só
+      // funciona em clients controlados pelo SW; se rejeitar, pulamos para a
+      // próxima e, em último caso, abrimos uma janela nova (que sempre rola).
       for (const client of allClients) {
-        if ("focus" in client) {
-          await client.navigate(target).catch(() => {});
+        try {
+          await client.navigate(target);
           return client.focus();
+        } catch {
+          // client não-controlado pelo SW — tenta o próximo
         }
       }
       if (self.clients.openWindow) {
