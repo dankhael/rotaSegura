@@ -2,6 +2,7 @@ import { TopBar } from "@/components/home/top-bar";
 import { AlertBanner } from "@/components/home/alert-banner";
 import { Hero } from "@/components/home/hero";
 import { MapCard } from "@/components/home/map-card";
+import { DonationCard } from "@/components/home/donation-card";
 import { ReportTrigger } from "@/components/home/report-trigger";
 
 export default function Home() {
@@ -15,6 +16,7 @@ export default function Home() {
         <MapCard />
         <aside className="flex flex-col gap-3">
           <ReportTrigger />
+          <DonationCard />
         </aside>
       </div>
     </main>

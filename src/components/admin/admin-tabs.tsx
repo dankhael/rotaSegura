@@ -3,18 +3,17 @@
 import { useState } from "react";
 
 import { OccurrenceDashboard } from "@/components/admin/dashboard/occurrence-dashboard";
+import { DonationsPanel } from "@/components/admin/donations-panel";
 import { SupportPointsPanel } from "@/components/admin/support-points-panel";
 import { cn } from "@/lib/utils";
 
-type TabId = "dashboard" | "locais";
+type TabId = "dashboard" | "locais" | "doacoes";
 
 type AdminTab = {
   id: TabId;
   label: string;
 };
 
-// "Dashboard" é o resumo de ocorrências (US10) e "Gestão de Locais" administra os
-// pontos de apoio; novas abas podem ser adicionadas aqui conforme forem criadas.
 const ADMIN_TABS: AdminTab[] = [
   {
     id: "dashboard",
@@ -23,6 +22,10 @@ const ADMIN_TABS: AdminTab[] = [
   {
     id: "locais",
     label: "Gestão de Locais",
+  },
+  {
+    id: "doacoes",
+    label: "Gestão de Doações",
   },
 ];
 
@@ -56,12 +59,13 @@ export function AdminTabs() {
           hidden={tab.id !== activeId}
           className="mt-6"
         >
-          {tab.id === activeId &&
-            (tab.id === "dashboard" ? (
-              <OccurrenceDashboard />
-            ) : (
-              <SupportPointsPanel />
-            ))}
+          {tab.id === activeId && (
+            <>
+              {tab.id === "dashboard" && <OccurrenceDashboard />}
+              {tab.id === "locais" && <SupportPointsPanel />}
+              {tab.id === "doacoes" && <DonationsPanel />}
+            </>
+          )}
         </div>
       ))}
     </section>

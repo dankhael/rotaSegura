@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 
+import { AdminLoadingState } from "@/components/admin/admin-loading-state";
+import { AdminManagementLayout } from "@/components/admin/admin-management-layout";
 import { SupportPointForm } from "@/components/admin/support-points/support-point-form";
 import { SupportPointsEmptyState } from "@/components/admin/support-points/support-points-empty-state";
 import { SupportPointsFeedback } from "@/components/admin/support-points/support-points-feedback";
@@ -170,7 +172,7 @@ export function SupportPointsPanel() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <AdminManagementLayout>
       <section
         className="overflow-hidden border bg-(--surface)"
         style={{ borderColor: "var(--line)", borderRadius: "var(--r-lg)" }}
@@ -181,9 +183,13 @@ export function SupportPointsPanel() {
         >
           <div>
             <h2 className="text-lg font-bold text-(--ink-2)">Locais de apoio</h2>
-            <p className="mt-1 text-sm text-(--ink-3)">
-              {points.length} cadastrados, capacidade total de {totalCapacity} pessoas.
-            </p>
+            {loading ? (
+              <p className="mt-1 text-sm text-(--ink-3)">Carregando locais cadastrados...</p>
+            ) : (
+              <p className="mt-1 text-sm text-(--ink-3)">
+                {points.length} cadastrados, capacidade total de {totalCapacity} pessoas.
+              </p>
+            )}
           </div>
           <Button
             type="button"
@@ -199,9 +205,7 @@ export function SupportPointsPanel() {
         {feedback && <SupportPointsFeedback type={feedback.type} message={feedback.message} />}
 
         {loading ? (
-          <div className="grid min-h-64 place-items-center px-6 py-12 text-center">
-            <p className="text-sm font-medium text-(--ink-3)">Carregando locais...</p>
-          </div>
+          <AdminLoadingState message="Carregando locais..." />
         ) : points.length === 0 ? (
           <SupportPointsEmptyState onCreate={resetForm} />
         ) : (
@@ -224,6 +228,6 @@ export function SupportPointsPanel() {
         onSubmit={handleSubmit}
         onReset={resetForm}
       />
-    </div>
+    </AdminManagementLayout>
   );
 }
