@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -62,12 +62,24 @@ export async function GET(request: NextRequest) {
 
 // Envoltório que isola exceções de push: Promise não-aguardada não deve
 // escapar para o handler. CLAUDE.md §"Exception messages" — logamos com contexto.
-function notifyNearby(occurrence: Occurrence): Promise<void> {
-  return sendPushToNearbyUsers(occurrence)
-    .then(() => undefined)
-    .catch((err: unknown) => {
-      console.error("[notifyNearby] occurrenceId=" + occurrence.id, err);
-    });
+async function notifyNearby(occurrence: Occurrence): Promise<void> {
+  try {
+    await sendPushToNearbyUsers(occurrence);
+  } catch (err) {
+    console.error("[notifyNearby] occurrenceId=" + occurrence.id, err);
+  }
+}
+
+// Agenda trabalho pós-resposta. Em produção (Next runtime) `after()` mantém a
+// Function viva até a Promise resolver — evita push perdido quando a Vercel
+// encerra a invocação. Em testes unit (sem request scope) `after()` lança;
+// caímos para `void` que é equivalente ao comportamento anterior.
+function scheduleAfterResponse(work: Promise<void>): void {
+  try {
+    after(work);
+  } catch {
+    void work;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -111,10 +123,12 @@ export async function POST(request: NextRequest) {
     // RS-TK04: dispara push para vizinhos só quando a ocorrência é promovida
     // (PENDING → CONFIRMED). Notificar em criação PENDING geraria alertas a
     // partir de relatos isolados, ainda não validados pelo threshold de US06.
-    // Fire-and-forget — AC-09 exige que falha no envio não bloqueie a resposta
-    // nem aborte o salvamento.
+    // `after()` agenda o trabalho para rodar DEPOIS da resposta sair, sem
+    // arriscar a Function ser encerrada (em Vercel) com a Promise solta — que
+    // era o problema do `void notifyNearby(...)` anterior. AC-09 garantido
+    // pelo try/catch interno de notifyNearby.
     if (result.promoted) {
-      void notifyNearby(result.occurrence);
+      scheduleAfterResponse(notifyNearby(result.occurrence));
     }
 
     // 200 idempotente quando deviceId já estava na ocorrência; 201 caso novo report.

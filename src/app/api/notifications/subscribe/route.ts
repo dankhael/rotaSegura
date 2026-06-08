@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
-import { badRequest, fromZodError, internalError, notFound } from "@/lib/api-response";
+import {
+  badRequest,
+  fromZodError,
+  internalError,
+  notFound,
+  tooManyRequests,
+  unauthorized,
+} from "@/lib/api-response";
 import { getOptionalUser } from "@/lib/auth/optional-user";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
+import { getClientIp } from "@/lib/http/client-ip";
 import {
   createPushSubscriptionSchema,
   deletePushSubscriptionSchema,
 } from "@/lib/validations/notification";
+
+// Mais tolerante que o login: re-subscribes legítimos podem acontecer em
+// page reloads e em re-grants de permissão. 30 req/min/IP cobre uso normal
+// e ainda bloqueia atacante tentando poluir a tabela.
+const RATE_LIMIT = { windowMs: 60_000, max: 30 };
 
 // Identidade: deviceId (anônimo, persistente em localStorage — alinhado a /api/reports)
 // ou userId (admin via JWT). Pelo menos um precisa estar presente para que o
@@ -23,6 +37,14 @@ function resolveIdentity(input: {
 
 export async function POST(request: NextRequest) {
   try {
+    const rate = checkRateLimit(`push-subscribe:${getClientIp(request)}`, RATE_LIMIT);
+    if (!rate.allowed) {
+      return tooManyRequests(
+        "Muitas tentativas de inscrição. Tente novamente em instantes.",
+        rate.retryAfterSeconds,
+      );
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -91,8 +113,23 @@ export async function DELETE(request: NextRequest) {
     const parsed = deletePushSubscriptionSchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
 
+    const user = await getOptionalUser(request);
+    const identity = resolveIdentity({ deviceId: parsed.data.deviceId, userId: user?.sub ?? null });
+    if (!identity) {
+      return unauthorized("Forneça deviceId ou autentique-se para cancelar inscrição");
+    }
+
+    // WHERE escopado: endpoint sozinho não basta — sem este filtro, vazamento
+    // do endpoint (logs, error reports) permitiria que qualquer um derrubasse
+    // a subscription alheia. Só apaga se o caller for dono (deviceId/userId).
     const deleted = await prisma.$executeRaw`
-      DELETE FROM "push_subscriptions" WHERE endpoint = ${parsed.data.endpoint}
+      DELETE FROM "push_subscriptions"
+      WHERE endpoint = ${parsed.data.endpoint}
+        AND (
+          (${identity.deviceId}::text IS NOT NULL AND "deviceId" = ${identity.deviceId})
+          OR
+          (${identity.userId}::text IS NOT NULL AND "userId" = ${identity.userId})
+        )
     `;
 
     if (deleted === 0) return notFound("Subscription não encontrada");

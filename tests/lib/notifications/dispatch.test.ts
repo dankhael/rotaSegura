@@ -65,12 +65,26 @@ describe("sendPushToNearbyUsers", () => {
     ]);
     const sender = new FakeSender([{ ok: true }, { ok: true }]);
 
-    const result = await sendPushToNearbyUsers(occ(), { radiusKm: 2, sender });
+    const result = await sendPushToNearbyUsers(occ({ uniqueDeviceCount: 3 }), {
+      radiusKm: 2,
+      sender,
+    });
 
     expect(result).toEqual({ candidates: 2, delivered: 2, expiredRemoved: 0 });
     expect(sender.calls).toHaveLength(2);
     expect(sender.calls[0].payload.occurrenceId).toBe("occ-1");
     expect(sender.calls[0].payload.title).toContain("Enchente");
+    // Body carrega contagem de relatos (AC-05 — corpo informativo, não só CTA).
+    expect(sender.calls[0].payload.body).toContain("3 relatos");
+  });
+
+  it("usa singular no body quando há apenas 1 relato confirmando", async () => {
+    queryRawMock.mockResolvedValueOnce([{ id: "s1", endpoint: "e1", p256dh: "p1", auth: "a1" }]);
+    const sender = new FakeSender([{ ok: true }]);
+
+    await sendPushToNearbyUsers(occ({ uniqueDeviceCount: 1 }), { sender });
+
+    expect(sender.calls[0].payload.body).toMatch(/^1 relato confirmou/);
   });
 
   it("retorna 0 candidatos quando ninguém está dentro do raio (AC-09)", async () => {

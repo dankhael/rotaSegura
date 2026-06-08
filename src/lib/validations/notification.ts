@@ -34,6 +34,10 @@ export const createPushSubscriptionSchema = z.object({
 
 export const deletePushSubscriptionSchema = z.object({
   endpoint: z.string().url("endpoint deve ser uma URL válida"),
+  // Mesma identidade do POST: deviceId anônimo OU userId via Bearer (resolvido
+  // no endpoint). O DELETE precisa de uma das duas pra não deixar terceiros
+  // derrubarem subscriptions alheias caso o endpoint vaze.
+  deviceId: z.string().uuid("deviceId deve ser um UUID válido").optional(),
 });
 
 export type CreatePushSubscriptionInput = z.infer<typeof createPushSubscriptionSchema>;

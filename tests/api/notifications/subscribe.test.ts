@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
 
 import { DELETE, POST } from "@/app/api/notifications/subscribe/route";
 import { signAuthToken } from "@/lib/auth/jwt";
+import { resetRateLimit } from "@/lib/auth/rate-limit";
 
 function makeRequest(
   method: "POST" | "DELETE",
@@ -30,10 +31,12 @@ const VALID_SUB = {
   endpoint: "https://push.example/abc",
   keys: { p256dh: "pkey", auth: "akey" },
 };
+const VALID_DEVICE_ID = "11111111-1111-1111-1111-111111111111";
 
 beforeEach(() => {
   executeRawMock.mockReset();
   executeRawMock.mockResolvedValue(1);
+  resetRateLimit();
 });
 
 describe("POST /api/notifications/subscribe", () => {
@@ -41,7 +44,7 @@ describe("POST /api/notifications/subscribe", () => {
     const res = await POST(
       makeRequest("POST", {
         subscription: VALID_SUB,
-        deviceId: "11111111-1111-1111-1111-111111111111",
+        deviceId: VALID_DEVICE_ID,
         latitude: -19.92,
         longitude: -43.93,
       }),
@@ -82,7 +85,7 @@ describe("POST /api/notifications/subscribe", () => {
     const res = await POST(
       makeRequest("POST", {
         subscription: { endpoint: "not-a-url", keys: { p256dh: "", auth: "" } },
-        deviceId: "11111111-1111-1111-1111-111111111111",
+        deviceId: VALID_DEVICE_ID,
         latitude: 0,
         longitude: 0,
       }),
@@ -95,23 +98,58 @@ describe("POST /api/notifications/subscribe", () => {
     const res = await POST(makeRequest("POST", "not-json"));
     expect(res.status).toBe(400);
   });
+
+  it("bloqueia rajada de inscrições com 429 (anti-flood)", async () => {
+    const body = {
+      subscription: VALID_SUB,
+      deviceId: VALID_DEVICE_ID,
+      latitude: -19.92,
+      longitude: -43.93,
+    };
+    // RATE_LIMIT.max = 30 — o 31º request no mesmo IP estoura.
+    for (let i = 0; i < 30; i++) {
+      const ok = await POST(makeRequest("POST", body));
+      expect(ok.status).toBe(201);
+    }
+    const blocked = await POST(makeRequest("POST", body));
+    expect(blocked.status).toBe(429);
+  });
 });
 
 describe("DELETE /api/notifications/subscribe", () => {
-  it("remove subscription pelo endpoint (AC-07)", async () => {
+  it("remove subscription com deviceId (AC-07)", async () => {
     executeRawMock.mockResolvedValueOnce(1);
-    const res = await DELETE(makeRequest("DELETE", { endpoint: VALID_SUB.endpoint }));
+    const res = await DELETE(
+      makeRequest("DELETE", { endpoint: VALID_SUB.endpoint, deviceId: VALID_DEVICE_ID }),
+    );
     expect(res.status).toBe(200);
   });
 
-  it("retorna 404 quando o endpoint não existe", async () => {
-    executeRawMock.mockResolvedValueOnce(0);
+  it("remove subscription com usuário admin autenticado", async () => {
+    executeRawMock.mockResolvedValueOnce(1);
+    const token = await signAuthToken({ sub: "admin-1", email: "a@x", role: "ADMIN" });
+    const res = await DELETE(
+      makeRequest("DELETE", { endpoint: VALID_SUB.endpoint }, { Authorization: `Bearer ${token}` }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("rejeita DELETE sem deviceId nem token (vetor de derrubada alheia)", async () => {
     const res = await DELETE(makeRequest("DELETE", { endpoint: VALID_SUB.endpoint }));
+    expect(res.status).toBe(401);
+    expect(executeRawMock).not.toHaveBeenCalled();
+  });
+
+  it("retorna 404 quando endpoint+identidade não casam (não derruba alheia)", async () => {
+    executeRawMock.mockResolvedValueOnce(0);
+    const res = await DELETE(
+      makeRequest("DELETE", { endpoint: VALID_SUB.endpoint, deviceId: VALID_DEVICE_ID }),
+    );
     expect(res.status).toBe(404);
   });
 
   it("rejeita endpoint mal-formado", async () => {
-    const res = await DELETE(makeRequest("DELETE", { endpoint: "abc" }));
+    const res = await DELETE(makeRequest("DELETE", { endpoint: "abc", deviceId: VALID_DEVICE_ID }));
     expect(res.status).toBe(400);
     expect(executeRawMock).not.toHaveBeenCalled();
   });

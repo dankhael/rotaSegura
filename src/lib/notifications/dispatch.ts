@@ -116,9 +116,13 @@ async function purgeExpired(
 
 function buildPayload(occurrence: Occurrence): PushNotificationPayload {
   const label = TYPE_LABEL[occurrence.type] ?? "Risco reportado";
+  const count = occurrence.uniqueDeviceCount;
+  // O dispatch só roda em PENDING → CONFIRMED, então count >= threshold (US06).
+  // Plural em PT-BR: "2 relatos" / "1 relato" (defensivo p/ singular se a regra mudar).
+  const reportsPhrase = count === 1 ? "1 relato confirmou" : `${count} relatos confirmaram`;
   return {
     title: `⚠️ ${label} próxima`,
-    body: "Toque para ver no mapa a localização exata.",
+    body: `${reportsPhrase} ${label.toLowerCase()} perto de você. Toque para ver no mapa.`,
     occurrenceId: occurrence.id,
     lat: occurrence.centroidLatitude,
     lng: occurrence.centroidLongitude,
