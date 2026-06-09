@@ -136,7 +136,7 @@ function fillDonationForm(values: {
       target: { value: values.channelType },
     });
   }
-  fireEvent.change(screen.getByLabelText(/chave pix|conteúdo do qr code|link de doação/i), {
+  fireEvent.change(screen.getByLabelText(/chave pix|conteudo do qr code|link de doacao/i), {
     target: { value: values.channelValue },
   });
 }
@@ -424,8 +424,8 @@ describe("AdminTabs", () => {
     await screen.findByText("Nenhum canal cadastrado");
     fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
 
-    expect(await screen.findByText("Informe o título.")).toBeInTheDocument();
-    expect(screen.getByText("Informe a descrição.")).toBeInTheDocument();
+    expect(await screen.findByText("Informe o titulo.")).toBeInTheDocument();
+    expect(screen.getByText("Informe a descricao.")).toBeInTheDocument();
     expect(screen.getByText("Informe chave pix.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -581,7 +581,7 @@ describe("AdminTabs", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
 
     expect(
-      await screen.findByText("Informe uma URL válida começando com http ou https."),
+      await screen.findByText("Informe uma URL valida comecando com http ou https."),
     ).toBeInTheDocument();
   });
 });
