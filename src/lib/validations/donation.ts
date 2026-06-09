@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const QR_CODE_MAX_BYTES = 271;
+
 export const DonationChannelTypeSchema = z.enum(["PIX_KEY", "QR_CODE", "EXTERNAL_LINK"], {
   errorMap: () => ({
     message: "channelType deve ser um de: PIX_KEY, QR_CODE, EXTERNAL_LINK",
@@ -8,34 +10,34 @@ export const DonationChannelTypeSchema = z.enum(["PIX_KEY", "QR_CODE", "EXTERNAL
 
 const donationChannelBaseSchema = z.object({
   title: z
-    .string({ required_error: "title é obrigatório" })
+    .string({ required_error: "title e obrigatorio" })
     .trim()
-    .min(1, "title não pode ser vazio")
-    .max(255, "title deve ter no máximo 255 caracteres"),
+    .min(1, "title nao pode ser vazio")
+    .max(255, "title deve ter no maximo 255 caracteres"),
   description: z
-    .string({ required_error: "description é obrigatória" })
+    .string({ required_error: "description e obrigatoria" })
     .trim()
-    .min(1, "description não pode ser vazia")
-    .max(1000, "description deve ter no máximo 1000 caracteres"),
+    .min(1, "description nao pode ser vazia")
+    .max(1000, "description deve ter no maximo 1000 caracteres"),
   channelType: DonationChannelTypeSchema,
   channelValue: z
-    .string({ required_error: "channelValue é obrigatório" })
+    .string({ required_error: "channelValue e obrigatorio" })
     .trim()
-    .min(1, "channelValue não pode ser vazio")
-    .max(2048, "channelValue deve ter no máximo 2048 caracteres"),
+    .min(1, "channelValue nao pode ser vazio")
+    .max(2048, "channelValue deve ter no maximo 2048 caracteres"),
 });
 
 const paginationSchemaBase = z.object({
   page: z.coerce
-    .number({ invalid_type_error: "page deve ser um número" })
+    .number({ invalid_type_error: "page deve ser um numero" })
     .int()
     .positive()
     .default(1),
   limit: z.coerce
-    .number({ invalid_type_error: "limit deve ser um número" })
+    .number({ invalid_type_error: "limit deve ser um numero" })
     .int()
     .positive()
-    .max(100, "limit máximo é 100")
+    .max(100, "limit maximo e 100")
     .default(20),
 });
 
@@ -56,11 +58,15 @@ function validateChannelValue(
   data: { channelType?: string; channelValue?: string },
   ctx: z.RefinementCtx,
 ) {
-  if (data.channelType === "QR_CODE" && data.channelValue && byteLength(data.channelValue) > 272) {
+  if (
+    data.channelType === "QR_CODE" &&
+    data.channelValue &&
+    byteLength(data.channelValue) > QR_CODE_MAX_BYTES
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["channelValue"],
-      message: "channelValue deve ter no máximo 272 bytes para QR Code",
+      message: `channelValue deve ter no maximo ${QR_CODE_MAX_BYTES} bytes para QR Code`,
     });
     return;
   }
@@ -72,7 +78,7 @@ function validateChannelValue(
   ctx.addIssue({
     code: z.ZodIssueCode.custom,
     path: ["channelValue"],
-    message: "channelValue deve começar com http ou https",
+    message: "channelValue deve comecar com http ou https",
   });
 }
 

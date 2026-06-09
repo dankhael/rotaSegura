@@ -38,9 +38,21 @@ export function qrCodeSvg(value: string): string {
 }
 
 function chooseVersion(byteLength: number): number {
-  const version = DATA_CODEWORDS_L.findIndex((capacity) => byteLength + 2 <= capacity) + 1;
+  const version =
+    DATA_CODEWORDS_L.findIndex((capacity, index) => {
+      const version = index + 1;
+      return byteLength + dataOverheadCodewords(version) <= capacity;
+    }) + 1;
   if (version > 0) return version;
   throw new Error("Conteúdo muito longo para gerar QR Code.");
+}
+
+function dataOverheadCodewords(version: number): number {
+  return Math.ceil((4 + byteCountIndicatorBits(version)) / 8);
+}
+
+function byteCountIndicatorBits(version: number): number {
+  return version >= 10 ? 16 : 8;
 }
 
 function createMatrix(version: number): QrMatrix {
@@ -124,7 +136,7 @@ function reserveFormatAreas(matrix: QrMatrix) {
 function encodeData(bytes: number[], version: number): number[] {
   const bits: number[] = [];
   appendBits(bits, 0b0100, 4);
-  appendBits(bits, bytes.length, 8);
+  appendBits(bits, bytes.length, byteCountIndicatorBits(version));
   for (const byte of bytes) appendBits(bits, byte, 8);
 
   const dataCapacityBits = DATA_CODEWORDS_L[version - 1] * 8;

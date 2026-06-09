@@ -1,3 +1,4 @@
+import { QR_CODE_MAX_BYTES } from "@/lib/validations/donation";
 import type { DonationChannelType, DonationPoint } from "@/types/donation";
 
 export type DonationFormState = {
@@ -36,8 +37,8 @@ export function donationChannelLabel(type: DonationChannelType): string {
 export function donationChannelValueLabel(type: DonationChannelType): string {
   const labels: Record<DonationChannelType, string> = {
     PIX_KEY: "Chave PIX",
-    QR_CODE: "Conteúdo do QR Code",
-    EXTERNAL_LINK: "Link de doação",
+    QR_CODE: "Conteudo do QR Code",
+    EXTERNAL_LINK: "Link de doacao",
   };
 
   return labels[type];
@@ -81,14 +82,14 @@ export function validateDonationForm(form: DonationFormState): DonationFieldErro
   const description = form.description.trim();
   const channelValue = form.channelValue.trim();
 
-  if (!title) errors.title = "Informe o título.";
-  if (title.length > 255) errors.title = "Use no máximo 255 caracteres.";
+  if (!title) errors.title = "Informe o titulo.";
+  if (title.length > 255) errors.title = "Use no maximo 255 caracteres.";
 
-  if (!description) errors.description = "Informe a descrição.";
-  if (description.length > 1000) errors.description = "Use no máximo 1000 caracteres.";
+  if (!description) errors.description = "Informe a descricao.";
+  if (description.length > 1000) errors.description = "Use no maximo 1000 caracteres.";
 
   if (!DONATION_CHANNEL_TYPES.some((item) => item.value === form.channelType)) {
-    errors.channelType = "Selecione um tipo válido.";
+    errors.channelType = "Selecione um tipo valido.";
   }
 
   if (!channelValue) {
@@ -96,11 +97,15 @@ export function validateDonationForm(form: DonationFormState): DonationFieldErro
   }
 
   if (channelValue && form.channelType === "EXTERNAL_LINK" && !isValidUrl(channelValue)) {
-    errors.channelValue = "Informe uma URL válida começando com http ou https.";
+    errors.channelValue = "Informe uma URL valida comecando com http ou https.";
   }
 
-  if (channelValue && form.channelType === "QR_CODE" && qrCodeByteLength(channelValue) > 272) {
-    errors.channelValue = "Conteúdo do QR Code deve ter no máximo 272 bytes.";
+  if (
+    channelValue &&
+    form.channelType === "QR_CODE" &&
+    qrCodeByteLength(channelValue) > QR_CODE_MAX_BYTES
+  ) {
+    errors.channelValue = `Conteudo do QR Code deve ter no maximo ${QR_CODE_MAX_BYTES} bytes.`;
   }
 
   return errors;

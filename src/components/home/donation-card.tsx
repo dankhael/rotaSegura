@@ -132,7 +132,15 @@ function DonationContent({ donation }: { donation: DonationPoint }) {
 }
 
 function QrCodeDonation({ donation }: { donation: DonationPoint }) {
-  const svg = useMemo(() => qrCodeSvg(donation.channelValue), [donation.channelValue]);
+  const svg = useMemo(() => {
+    try {
+      return qrCodeSvg(donation.channelValue);
+    } catch {
+      return null;
+    }
+  }, [donation.channelValue]);
+
+  if (!svg) return <UnavailableDonationChannel />;
 
   return (
     <div className="grid justify-items-center">
@@ -147,6 +155,10 @@ function QrCodeDonation({ donation }: { donation: DonationPoint }) {
 }
 
 function ExternalLinkDonation({ donation }: { donation: DonationPoint }) {
+  const safeUrl = getSafeHttpUrl(donation.channelValue);
+
+  if (!safeUrl) return <UnavailableDonationChannel />;
+
   return (
     <div
       className="rounded-2xl border px-4 py-3 text-center text-sm shadow-sm"
@@ -157,7 +169,7 @@ function ExternalLinkDonation({ donation }: { donation: DonationPoint }) {
     >
       <span className="font-semibold text-(--ink-2)">Acesse: </span>
       <a
-        href={donation.channelValue}
+        href={safeUrl}
         target="_blank"
         rel="noreferrer"
         className="inline-flex max-w-full items-center gap-1 font-semibold text-(--safe-ink) underline-offset-2 hover:underline"
@@ -167,6 +179,31 @@ function ExternalLinkDonation({ donation }: { donation: DonationPoint }) {
       </a>
     </div>
   );
+}
+
+function UnavailableDonationChannel() {
+  return (
+    <div
+      className="rounded-2xl border px-4 py-3 text-center text-sm font-semibold shadow-sm"
+      style={{
+        borderColor: "color-mix(in oklab, var(--safe) 22%, var(--line))",
+        background: "var(--safe-soft)",
+        color: "var(--safe-ink)",
+      }}
+    >
+      Canal indisponÃ­vel no momento.
+    </div>
+  );
+}
+
+function getSafeHttpUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function PixDonation({ donation }: { donation: DonationPoint }) {

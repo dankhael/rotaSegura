@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { badRequest, fromZodError, internalError } from "@/lib/api-response";
+import { badRequest, fromZodError, internalError, unauthorized } from "@/lib/api-response";
+import { isAdminRequest } from "@/lib/auth/admin-guard";
 import { prisma } from "@/lib/db";
 import { type RawDonationChannel, toDonationPoint } from "@/lib/donations/serialize";
 import { createDonationChannelSchema, paginationSchema } from "@/lib/validations/donation";
@@ -52,6 +53,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!(await isAdminRequest(request))) {
+      return unauthorized("Acesso restrito a administradores");
+    }
+
     let body: unknown;
 
     try {
