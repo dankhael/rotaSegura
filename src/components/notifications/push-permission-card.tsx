@@ -6,6 +6,7 @@ import { getDeviceId } from "@/lib/device/device-id";
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import {
   getPermission,
+  hasActiveSubscription,
   isPushSupported,
   subscribeToPush,
   unsubscribeFromPush,
@@ -34,9 +35,21 @@ export function PushPermissionCard({ vapidPublicKey }: PushPermissionCardProps) 
       return;
     }
     const perm = getPermission();
-    if (perm === "granted") setStatus("granted");
-    else if (perm === "denied") setStatus("denied");
-    else setStatus("idle");
+    if (perm === "denied") {
+      setStatus("denied");
+      return;
+    }
+    // "granted" sem sub ativa acontece quando o usuário fez DELETE depois,
+    // a sub foi purgada (410) ou o site data foi limpo. Sem checar o
+    // PushManager o card mente: diz "Alertas ativados" sem entregar nada.
+    let cancelled = false;
+    hasActiveSubscription().then((active) => {
+      if (cancelled) return;
+      setStatus(active ? "granted" : "idle");
+    });
+    return () => {
+      cancelled = true;
+    };
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [vapidPublicKey]);
 
@@ -60,15 +73,26 @@ export function PushPermissionCard({ vapidPublicKey }: PushPermissionCardProps) 
     }
     if (result.reason === "permission-denied") setStatus("denied");
     else if (result.reason === "unsupported") setStatus("unsupported");
-    else {
+    else if (result.reason === "permission-dismissed") {
+      // Prompt fechado sem decidir — botão segue visível pra nova tentativa.
+      setStatus("idle");
+      setError("Permissão fechada. Toque em ativar para tentar de novo.");
+    } else {
       setStatus("error");
       setError(reasonToMessage(result.reason));
     }
   }, [geo.coords, vapidPublicKey]);
 
   const handleDisable = useCallback(async () => {
-    await unsubscribeFromPush();
-    setStatus("idle");
+    const ok = await unsubscribeFromPush({ deviceId: getDeviceId() });
+    if (ok) {
+      setStatus("idle");
+      return;
+    }
+    // Backend não confirmou a remoção: mantemos "granted" pra evitar drift
+    // (card "desativado" + linha viva no banco), e sinalizamos pra tentar
+    // de novo. O usuário pode revogar nas configs do browser como saída.
+    setError("Não foi possível desativar. Tente novamente em instantes.");
   }, []);
 
   if (status === "unsupported" || status === "denied") return null;
@@ -79,6 +103,11 @@ export function PushPermissionCard({ vapidPublicKey }: PushPermissionCardProps) 
         <p style={{ fontSize: 13, marginTop: 4, color: "var(--ink-3)" }}>
           Você receberá uma notificação quando uma ocorrência for registrada perto de você.
         </p>
+        {error && (
+          <p style={{ fontSize: 12, marginTop: 6, color: "var(--emergency)" }} role="alert">
+            {error}
+          </p>
+        )}
         <button type="button" onClick={handleDisable} style={linkButtonStyle}>
           Desativar
         </button>

@@ -103,6 +103,14 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const rate = checkRateLimit(`push-unsubscribe:${getClientIp(request)}`, RATE_LIMIT);
+    if (!rate.allowed) {
+      return tooManyRequests(
+        "Muitas tentativas. Tente novamente em instantes.",
+        rate.retryAfterSeconds,
+      );
+    }
+
     let body: unknown;
     try {
       body = await request.json();

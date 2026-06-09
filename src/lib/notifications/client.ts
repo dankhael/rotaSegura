@@ -54,7 +54,15 @@ export type SubscribeInput = {
 
 export type SubscribeResult =
   | { ok: true; subscription: PushSubscription }
-  | { ok: false; reason: "permission-denied" | "unsupported" | "no-device-id" | "network" };
+  | {
+      ok: false;
+      reason:
+        | "permission-denied"
+        | "permission-dismissed"
+        | "unsupported"
+        | "no-device-id"
+        | "network";
+    };
 
 export async function subscribeToPush(input: SubscribeInput): Promise<SubscribeResult> {
   if (!isPushSupported()) return { ok: false, reason: "unsupported" };
@@ -63,8 +71,13 @@ export async function subscribeToPush(input: SubscribeInput): Promise<SubscribeR
     return { ok: false, reason: "no-device-id" };
   }
 
+  // O browser devolve três estados — `granted`, `denied`, `default`. Tratar
+  // `default` (usuário fechou o prompt sem decidir) como denied esconde o
+  // botão pelo resto da sessão. Distinguimos pra que o card volte a oferecer
+  // a opção de tentar de novo.
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") return { ok: false, reason: "permission-denied" };
+  if (permission === "denied") return { ok: false, reason: "permission-denied" };
+  if (permission !== "granted") return { ok: false, reason: "permission-dismissed" };
 
   const reg = await registerServiceWorker();
   if (!reg) return { ok: false, reason: "unsupported" };
@@ -97,7 +110,19 @@ export async function subscribeToPush(input: SubscribeInput): Promise<SubscribeR
   return { ok: true, subscription };
 }
 
-export async function unsubscribeFromPush(): Promise<boolean> {
+export type UnsubscribeInput = {
+  deviceId: string | null;
+  authToken?: string | null;
+};
+
+/**
+ * Cancela a inscrição no backend e no browser. Retorna `false` quando o
+ * backend rejeita ou cai (rede/4xx/5xx) — nesse caso preservamos a sub local
+ * pra que o card mantenha "ativado" e o usuário possa tentar de novo, em vez
+ * de ficar dessincronizado (sem sub local + linha viva no banco recebendo
+ * pushes que nunca chegam).
+ */
+export async function unsubscribeFromPush(input: UnsubscribeInput): Promise<boolean> {
   if (!isPushSupported()) return false;
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) return false;
@@ -106,12 +131,35 @@ export async function unsubscribeFromPush(): Promise<boolean> {
 
   // Remoção em duas etapas: backend primeiro (para que um disparo concorrente
   // não tente entregar para um endpoint já cancelado), browser depois.
-  await fetch(SUBSCRIBE_ENDPOINT, {
+  // Mandamos a identidade: o servidor escopa o WHERE por dono (deviceId/
+  // userId) e devolve 401 sem ela. fetch() não joga em 4xx, então checamos
+  // res.ok explicitamente — antes, opt-out anônimo virava 401 silencioso e
+  // a linha ficava órfã até a auto-cura por 410.
+  const res = await fetch(SUBSCRIBE_ENDPOINT, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ endpoint: sub.endpoint }),
-  }).catch(() => undefined);
+    headers: {
+      "Content-Type": "application/json",
+      ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+    },
+    body: JSON.stringify({ endpoint: sub.endpoint, deviceId: input.deviceId }),
+  }).catch(() => null);
+
+  if (!res || !res.ok) return false;
 
   await sub.unsubscribe().catch(() => undefined);
   return true;
+}
+
+/**
+ * Checa se há subscription ativa no PushManager. Necessário para decidir o
+ * estado do card de permissão — confiar só em `Notification.permission` é
+ * insuficiente: permissão concedida + sub purgada (410) ou sub apagada via
+ * "clear site data" mostraria "Alertas ativados" sem entrega real.
+ */
+export async function hasActiveSubscription(): Promise<boolean> {
+  if (!isPushSupported()) return false;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return false;
+  const sub = await reg.pushManager.getSubscription();
+  return sub !== null;
 }

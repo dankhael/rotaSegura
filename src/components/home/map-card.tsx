@@ -59,12 +59,19 @@ export function MapCard() {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const lat = Number(params.get("lat"));
-    const lng = Number(params.get("lng"));
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setFocusPoint({ lat, lng });
-      setFocusToken((t) => t + 1);
-    }
+    // Cuidado: Number(null) === 0 e Number.isFinite(0) === true — checar
+    // presença antes de converter, senão toda visita normal à home (sem deep-
+    // link) centralizaria no (0,0) (Golfo da Guiné).
+    const latRaw = params.get("lat");
+    const lngRaw = params.get("lng");
+    if (latRaw === null || lngRaw === null) return;
+
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    setFocusPoint({ lat, lng });
+    setFocusToken((t) => t + 1);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 

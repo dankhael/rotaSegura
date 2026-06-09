@@ -31,6 +31,8 @@ const TYPE_LABEL: Record<OccurrenceType, string> = {
 export type DispatchOptions = {
   /** Raio em km. Padrão = env.NOTIFICATION_RADIUS_KM. */
   radiusKm?: number;
+  /** Teto de destinatários por disparo. Padrão = env.NOTIFICATION_MAX_RECIPIENTS. */
+  maxRecipients?: number;
   /** Substituível por uma fake nos testes. */
   sender?: WebPushSender;
   /** Permite injetar uma transaction client em testes/dispatcher inline. */
@@ -54,11 +56,12 @@ export async function sendPushToNearbyUsers(
   options: DispatchOptions = {},
 ): Promise<DispatchResult> {
   const radiusKm = options.radiusKm ?? env.NOTIFICATION_RADIUS_KM;
+  const maxRecipients = options.maxRecipients ?? env.NOTIFICATION_MAX_RECIPIENTS;
   const sender = options.sender ?? new RealWebPushSender();
   const db = options.db ?? prisma;
 
   try {
-    const subs = await findNearbySubscriptions(db, occurrence, radiusKm);
+    const subs = await findNearbySubscriptions(db, occurrence, radiusKm, maxRecipients);
     if (subs.length === 0) return { candidates: 0, delivered: 0, expiredRemoved: 0 };
 
     const payload = buildPayload(occurrence);
@@ -88,9 +91,13 @@ async function findNearbySubscriptions(
   db: Prisma.TransactionClient | typeof prisma,
   occurrence: Occurrence,
   radiusKm: number,
+  maxRecipients: number,
 ): Promise<NearbySubscriptionRow[]> {
   const radiusM = radiusKm * 1000;
   // ST_DWithin em geography aceita metros — alinhado com clusterReport (US06).
+  // LIMIT protege a Function: numa área densa o fan-out pode estourar memória/
+  // latência num único Promise.allSettled. Por ora cortamos pelo mais perto;
+  // processamento em lotes vira issue de follow-up quando a base crescer.
   return db.$queryRaw<NearbySubscriptionRow[]>`
     SELECT id, endpoint, p256dh, auth
     FROM "push_subscriptions"
@@ -102,6 +109,14 @@ async function findNearbySubscriptions(
       )::geography,
       ${radiusM}::float8
     )
+    ORDER BY ST_Distance(
+      location,
+      ST_SetSRID(
+        ST_MakePoint(${occurrence.centroidLongitude}::float8, ${occurrence.centroidLatitude}::float8),
+        4326
+      )::geography
+    ) ASC
+    LIMIT ${maxRecipients}::int
   `;
 }
 

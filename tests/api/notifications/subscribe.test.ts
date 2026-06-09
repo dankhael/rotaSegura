@@ -153,4 +153,14 @@ describe("DELETE /api/notifications/subscribe", () => {
     expect(res.status).toBe(400);
     expect(executeRawMock).not.toHaveBeenCalled();
   });
+
+  it("bloqueia rajada de DELETE com 429 (anti-flood de unsubscribe)", async () => {
+    const body = { endpoint: VALID_SUB.endpoint, deviceId: VALID_DEVICE_ID };
+    for (let i = 0; i < 30; i++) {
+      const ok = await DELETE(makeRequest("DELETE", body));
+      expect(ok.status).toBe(200);
+    }
+    const blocked = await DELETE(makeRequest("DELETE", body));
+    expect(blocked.status).toBe(429);
+  });
 });

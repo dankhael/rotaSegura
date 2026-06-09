@@ -17,6 +17,10 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default("mailto:contato@rotasegura.local"),
   NOTIFICATION_RADIUS_KM: z.coerce.number().positive().default(2),
+  // Teto de fan-out por disparo: protege a Function contra pico de
+  // memória/latência em áreas densas. Default conservador; subir conforme a
+  // base cresce. Mais que isso → processar em lotes (issue de follow-up).
+  NOTIFICATION_MAX_RECIPIENTS: z.coerce.number().int().positive().default(500),
 });
 
 const parsed = envSchema.safeParse(process.env);
