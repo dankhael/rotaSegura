@@ -94,3 +94,17 @@ model SupportPoint {
   @@index([location], type: Gist)
   @@map("support_points")
 }
+
+model DonationChannel {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  // channelType validado em camada de aplicação: PIX_KEY | QR_CODE | EXTERNAL_LINK.
+  channelType  String
+  channelValue String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([channelType])
+  @@map("donation_channels")
+}

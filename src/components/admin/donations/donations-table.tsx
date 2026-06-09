@@ -3,53 +3,46 @@ import type { ComponentProps } from "react";
 
 import { AdminTypeBadge } from "@/components/admin/admin-type-badge";
 import { Button } from "@/components/ui/button";
-import { formatSupportPointCapacity, supportPointTypeLabel } from "@/lib/support-points/form";
-import type { SupportPoint, SupportPointType } from "@/types/support-point";
+import { donationChannelLabel } from "@/lib/donations/form";
+import type { DonationChannelType, DonationPoint } from "@/types/donation";
 
-const TYPE_TONE: Record<SupportPointType, ComponentProps<typeof AdminTypeBadge>["tone"]> = {
-  SHELTER: "info",
-  MEDICAL: "emergency",
-  SUPPLY: "safe",
-  OTHER: "neutral",
+const CHANNEL_TONE: Record<DonationChannelType, ComponentProps<typeof AdminTypeBadge>["tone"]> = {
+  PIX_KEY: "safe",
+  QR_CODE: "info",
+  EXTERNAL_LINK: "warn",
 };
 
-function formatCoordinate(value: number): string {
-  return value.toFixed(6);
-}
-
-type SupportPointsTableProps = {
-  points: SupportPoint[];
+type DonationsTableProps = {
+  points: DonationPoint[];
   editingId?: string;
   deletingId: string | null;
-  onEdit: (point: SupportPoint) => void;
-  onDelete: (point: SupportPoint) => void;
+  onEdit: (point: DonationPoint) => void;
+  onDelete: (point: DonationPoint) => void;
 };
 
-export function SupportPointsTable({
+export function DonationsTable({
   points,
   editingId,
   deletingId,
   onEdit,
   onDelete,
-}: SupportPointsTableProps) {
+}: DonationsTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
         <colgroup>
-          <col className="w-[24%]" />
-          <col className="w-[16%]" />
-          <col className="w-[16%]" />
-          <col className="w-[17%]" />
-          <col className="w-[17%]" />
+          <col className="w-[23%]" />
+          <col className="w-[15%]" />
+          <col className="w-[30%]" />
+          <col className="w-[22%]" />
           <col className="w-[10%]" />
         </colgroup>
         <thead className="bg-(--surface-2) text-left text-xs font-semibold uppercase text-(--ink-4)">
           <tr>
-            <th className="px-4 py-3">Nome</th>
+            <th className="px-4 py-3">Título</th>
             <th className="px-4 py-3">Tipo</th>
-            <th className="px-4 py-3">Capacidade</th>
-            <th className="px-4 py-3">Latitude</th>
-            <th className="px-4 py-3">Longitude</th>
+            <th className="px-4 py-3">Descrição</th>
+            <th className="px-4 py-3">Canal</th>
             <th className="px-4 py-3 text-right">Ações</th>
           </tr>
         </thead>
@@ -64,24 +57,28 @@ export function SupportPointsTable({
               }}
             >
               <td className="px-4 py-3 font-semibold text-(--ink-2)">
-                <span className="block truncate" title={point.name}>
-                  {point.name}
+                <span className="block truncate" title={point.title}>
+                  {point.title}
                 </span>
               </td>
               <td className="px-4 py-3">
                 <AdminTypeBadge
-                  label={supportPointTypeLabel(point.type)}
-                  tone={TYPE_TONE[point.type]}
+                  label={donationChannelLabel(point.channelType)}
+                  tone={CHANNEL_TONE[point.channelType]}
                 />
               </td>
               <td className="px-4 py-3 text-(--ink-3)">
-                {formatSupportPointCapacity(point.capacity)}
+                <span
+                  className="block max-h-10 overflow-hidden leading-5"
+                  title={point.description}
+                >
+                  {point.description}
+                </span>
               </td>
-              <td className="px-4 py-3 font-mono text-xs text-(--ink-3)">
-                {formatCoordinate(point.latitude)}
-              </td>
-              <td className="px-4 py-3 font-mono text-xs text-(--ink-3)">
-                {formatCoordinate(point.longitude)}
+              <td className="px-4 py-3 text-(--ink-3)">
+                <span className="block truncate" title={point.channelValue}>
+                  {point.channelValue}
+                </span>
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
@@ -90,7 +87,7 @@ export function SupportPointsTable({
                     variant="outline"
                     size="icon-sm"
                     onClick={() => onEdit(point)}
-                    aria-label={`Editar ${point.name}`}
+                    aria-label={`Editar ${point.title}`}
                   >
                     <Edit3 />
                   </Button>
@@ -100,7 +97,7 @@ export function SupportPointsTable({
                     size="icon-sm"
                     onClick={() => onDelete(point)}
                     disabled={deletingId === point.id}
-                    aria-label={`Remover ${point.name}`}
+                    aria-label={`Remover ${point.title}`}
                     aria-busy={deletingId === point.id}
                   >
                     <Trash2 />

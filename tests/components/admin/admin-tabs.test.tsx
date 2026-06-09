@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { AdminTabs } from "@/components/admin/admin-tabs";
+import type { DonationPoint } from "@/types/donation";
 import type { SupportPoint } from "@/types/support-point";
 
 // A aba Dashboard (ativa por padrão) renderiza OccurrenceDashboard, que busca o
@@ -34,6 +35,25 @@ const pointB: SupportPoint = {
   capacity: 50,
 };
 
+const donationA: DonationPoint = {
+  id: "donation-1",
+  title: "Campanha Abrigo Central",
+  description: "Doações para compra de alimentos, água e itens de higiene.",
+  channelType: "PIX_KEY",
+  channelValue: "doacoes@rotasegura.org",
+  createdAt: "2026-05-01T10:00:00.000Z",
+  updatedAt: "2026-05-01T10:00:00.000Z",
+};
+
+const donationB: DonationPoint = {
+  ...donationA,
+  id: "donation-2",
+  title: "Fundo emergencial de suprimentos",
+  description: "Canal para organizações apoiarem a reposição de cestas básicas.",
+  channelType: "EXTERNAL_LINK",
+  channelValue: "https://rotasegura.org/doar",
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return {
     ok: status >= 200 && status < 300,
@@ -47,6 +67,10 @@ function emptyListResponse() {
 }
 
 function listResponse(data: SupportPoint[]) {
+  return jsonResponse({ data, meta: { total: data.length, page: 1, limit: 100, totalPages: 1 } });
+}
+
+function donationListResponse(data: DonationPoint[]) {
   return jsonResponse({ data, meta: { total: data.length, page: 1, limit: 100, totalPages: 1 } });
 }
 
@@ -68,6 +92,10 @@ function findFetchCall(fetchMock: ReturnType<typeof vi.fn>, method: string) {
 
 function openLocationsTab() {
   fireEvent.click(screen.getByRole("tab", { name: "Gestão de Locais" }));
+}
+
+function openDonationsTab() {
+  fireEvent.click(screen.getByRole("tab", { name: "Gestão de Doações" }));
 }
 
 function fillForm(values: {
@@ -92,6 +120,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+function fillDonationForm(values: {
+  title: string;
+  description: string;
+  channelType?: string;
+  channelValue: string;
+}) {
+  fireEvent.change(screen.getByLabelText("Título"), { target: { value: values.title } });
+  fireEvent.change(screen.getByLabelText("Descrição"), {
+    target: { value: values.description },
+  });
+  if (values.channelType) {
+    fireEvent.change(screen.getByLabelText("Tipo do canal"), {
+      target: { value: values.channelType },
+    });
+  }
+  fireEvent.change(screen.getByLabelText(/chave pix|conteudo do qr code|link de doacao/i), {
+    target: { value: values.channelValue },
+  });
+}
 
 describe("AdminTabs", () => {
   it("mostra o Dashboard por padrão e alterna para Gestão de Locais ao clicar na aba", async () => {
@@ -126,6 +174,10 @@ describe("AdminTabs", () => {
 
     expect(screen.getByRole("tab", { name: "Dashboard" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Gestão de Locais" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(screen.getByRole("tab", { name: "Gestão de Doações" })).toHaveAttribute(
       "aria-selected",
       "false",
     );
@@ -262,8 +314,8 @@ describe("AdminTabs", () => {
     expect(await screen.findByText("Local atualizado com sucesso.")).toBeInTheDocument();
     expect(screen.getByText("Abrigo Central Atualizado")).toBeInTheDocument();
     expect(screen.getByText("250 pessoas")).toBeInTheDocument();
-    expect(screen.getByText("-8.2")).toBeInTheDocument();
-    expect(screen.getByText("-35")).toBeInTheDocument();
+    expect(screen.getByText("-8.200000")).toBeInTheDocument();
+    expect(screen.getByText("-35.000000")).toBeInTheDocument();
 
     const patchCall = findFetchCall(fetchMock, "PATCH");
     expect(patchCall?.[0]).toBe("/api/support-points/sp-1");
@@ -338,5 +390,198 @@ describe("AdminTabs", () => {
     expect(screen.getByText("Abrigo Central")).toBeInTheDocument();
     expect(screen.getByText("Posto Médico Norte")).toBeInTheDocument();
     expect(findFetchCall(fetchMock, "DELETE")).toBeUndefined();
+  });
+
+  it("renderiza a aba Gestao de Doacoes com canais retornados pela API", async () => {
+    mockFetch((input) => {
+      if (String(input).startsWith("/api/donations")) {
+        return donationListResponse([donationA, donationB]);
+      }
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+
+    expect(screen.getByRole("tab", { name: "Gestão de Doações" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await screen.findByText("Campanha Abrigo Central")).toBeInTheDocument();
+    expect(screen.getByText("Fundo emergencial de suprimentos")).toBeInTheDocument();
+    expect(screen.getAllByText("Chave PIX").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Link externo").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("valida campos obrigatorios antes de cadastrar um canal de doacao", async () => {
+    const fetchMock = mockFetch((input) => {
+      if (String(input).startsWith("/api/donations")) return donationListResponse([]);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+    await screen.findByText("Nenhum canal cadastrado");
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
+
+    expect(await screen.findByText("Informe o titulo.")).toBeInTheDocument();
+    expect(screen.getByText("Informe a descricao.")).toBeInTheDocument();
+    expect(screen.getByText("Informe chave pix.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("cadastra um canal de doacao via API e atualiza a lista", async () => {
+    const created: DonationPoint = {
+      ...donationA,
+      id: "donation-3",
+      title: "Ajuda para medicamentos",
+      description: "Contribuições para atendimento médico emergencial.",
+      channelValue: "medicamentos@rotasegura.org",
+    };
+
+    const fetchMock = mockFetch((input, init) => {
+      if (init?.method === "POST") return jsonResponse(created, 201);
+      if (String(input).startsWith("/api/donations")) return donationListResponse([]);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+    await screen.findByText("Nenhum canal cadastrado");
+    fillDonationForm({
+      title: "Ajuda para medicamentos",
+      description: "Contribuições para atendimento médico emergencial.",
+      channelType: "PIX_KEY",
+      channelValue: "medicamentos@rotasegura.org",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
+
+    expect(await screen.findByText("Canal cadastrado com sucesso.")).toBeInTheDocument();
+    expect(screen.getByText("Ajuda para medicamentos")).toBeInTheDocument();
+    expect(screen.getByText("medicamentos@rotasegura.org")).toBeInTheDocument();
+
+    const postCall = findFetchCall(fetchMock, "POST");
+    expect(postCall?.[0]).toBe("/api/donations");
+    expect(getJsonBody(postCall?.[1])).toEqual({
+      title: "Ajuda para medicamentos",
+      description: "Contribuições para atendimento médico emergencial.",
+      channelType: "PIX_KEY",
+      channelValue: "medicamentos@rotasegura.org",
+    });
+  });
+
+  it("edita um canal de doacao via API e reflete a alteracao na lista", async () => {
+    const updated: DonationPoint = {
+      ...donationA,
+      title: "Campanha Abrigo Central Atualizada",
+      channelValue: "novo-pix@rotasegura.org",
+    };
+
+    const fetchMock = mockFetch((input, init) => {
+      if (init?.method === "PATCH") return jsonResponse(updated);
+      if (String(input).startsWith("/api/donations")) return donationListResponse([donationA]);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+
+    await screen.findByText("Campanha Abrigo Central");
+    fireEvent.click(screen.getByRole("button", { name: "Editar Campanha Abrigo Central" }));
+    fireEvent.change(screen.getByLabelText("Título"), {
+      target: { value: "Campanha Abrigo Central Atualizada" },
+    });
+    fireEvent.change(screen.getByLabelText("Chave PIX"), {
+      target: { value: "novo-pix@rotasegura.org" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    expect(await screen.findByText("Canal atualizado com sucesso.")).toBeInTheDocument();
+    expect(screen.getByText("Campanha Abrigo Central Atualizada")).toBeInTheDocument();
+    expect(screen.getByText("novo-pix@rotasegura.org")).toBeInTheDocument();
+
+    const patchCall = findFetchCall(fetchMock, "PATCH");
+    expect(patchCall?.[0]).toBe("/api/donations/donation-1");
+  });
+
+  it("remove um canal de doacao apos confirmacao", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const fetchMock = mockFetch((input, init) => {
+      if (init?.method === "DELETE") {
+        return { ok: true, status: 204, json: vi.fn() } as unknown as Response;
+      }
+      if (String(input).startsWith("/api/donations")) {
+        return donationListResponse([donationA, donationB]);
+      }
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+
+    await screen.findByText("Campanha Abrigo Central");
+    fireEvent.click(screen.getByRole("button", { name: "Remover Campanha Abrigo Central" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Campanha Abrigo Central")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("Fundo emergencial de suprimentos")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/donations/donation-1", { method: "DELETE" });
+  });
+
+  it("aceita conteudo livre para QR Code", async () => {
+    const created: DonationPoint = {
+      ...donationA,
+      id: "donation-4",
+      title: "QR Code emergencial",
+      description: "Canal para doar via QR Code.",
+      channelType: "QR_CODE",
+      channelValue: "qrcode-sem-url",
+    };
+
+    mockFetch((input, init) => {
+      if (init?.method === "POST") return jsonResponse(created, 201);
+      if (String(input).startsWith("/api/donations")) return donationListResponse([]);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+    await screen.findByText("Nenhum canal cadastrado");
+    fillDonationForm({
+      title: "QR Code emergencial",
+      description: "Canal para doar via QR Code.",
+      channelType: "QR_CODE",
+      channelValue: "qrcode-sem-url",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
+
+    expect(await screen.findByText("Canal cadastrado com sucesso.")).toBeInTheDocument();
+    expect(screen.getByText("QR Code emergencial")).toBeInTheDocument();
+  });
+
+  it("valida URL para link externo", async () => {
+    mockFetch((input) => {
+      if (String(input).startsWith("/api/donations")) return donationListResponse([]);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openDonationsTab();
+    await screen.findByText("Nenhum canal cadastrado");
+    fillDonationForm({
+      title: "Link emergencial",
+      description: "Canal para doar por link.",
+      channelType: "EXTERNAL_LINK",
+      channelValue: "link-sem-url",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar canal" }));
+
+    expect(
+      await screen.findByText("Informe uma URL valida comecando com http ou https."),
+    ).toBeInTheDocument();
   });
 });
