@@ -151,10 +151,15 @@ export async function unsubscribeFromPush(input: UnsubscribeInput): Promise<bool
 }
 
 /**
- * Checa se há subscription ativa no PushManager. Necessário para decidir o
- * estado do card de permissão — confiar só em `Notification.permission` é
- * insuficiente: permissão concedida + sub purgada (410) ou sub apagada via
+ * Checa se há subscription ativa no PushManager *local*. Necessário para
+ * decidir o estado do card de permissão — confiar só em `Notification.permission`
+ * é insuficiente: permissão concedida + sub purgada (410) ou sub apagada via
  * "clear site data" mostraria "Alertas ativados" sem entrega real.
+ *
+ * Limitação conhecida: não detecta o caso inverso — sub presente no browser
+ * mas removida no backend (admin truncou a tabela, etc). Esse drift se
+ * autocorrige no próximo disparo via 410 → purgeExpired. Health-check
+ * server-side fica como follow-up se a frequência ficar incômoda.
  */
 export async function hasActiveSubscription(): Promise<boolean> {
   if (!isPushSupported()) return false;

@@ -72,13 +72,21 @@ async function notifyNearby(occurrence: Occurrence): Promise<void> {
 
 // Agenda trabalho pós-resposta. Em produção (Next runtime) `after()` mantém a
 // Function viva até a Promise resolver — evita push perdido quando a Vercel
-// encerra a invocação. Em testes unit (sem request scope) `after()` lança;
-// caímos para `void` que é equivalente ao comportamento anterior.
+// encerra a invocação. Em testes unit (sem request scope) `after()` lança o
+// erro abaixo; caímos para `void` que é equivalente ao comportamento anterior.
+// Outros erros (mudança de assinatura, work !== Promise) re-throw — não
+// queremos swallow silencioso quando algo genuíno der errado.
+const AFTER_OUT_OF_SCOPE = "outside a request scope";
+
 function scheduleAfterResponse(work: Promise<void>): void {
   try {
     after(work);
-  } catch {
-    void work;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes(AFTER_OUT_OF_SCOPE)) {
+      void work;
+      return;
+    }
+    throw err;
   }
 }
 

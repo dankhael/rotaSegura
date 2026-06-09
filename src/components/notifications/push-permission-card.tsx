@@ -86,6 +86,9 @@ export function PushPermissionCard({ vapidPublicKey }: PushPermissionCardProps) 
   const handleDisable = useCallback(async () => {
     const ok = await unsubscribeFromPush({ deviceId: getDeviceId() });
     if (ok) {
+      // Limpa erro de tentativa anterior — senão a mensagem velha vazaria
+      // pro card "idle" (info), que também renderiza {error && ...}.
+      setError(null);
       setStatus("idle");
       return;
     }
