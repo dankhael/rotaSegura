@@ -91,6 +91,8 @@ model SupportPoint {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  evaluations SupportPointEvaluation[]
+
   @@index([location], type: Gist)
   @@map("support_points")
 }
@@ -107,4 +109,19 @@ model DonationChannel {
 
   @@index([channelType])
   @@map("donation_channels")
+}
+
+model SupportPointEvaluation {
+  id             String   @id @default(uuid())
+  rating         Int      // De 1 a 5
+  comment        String?  @db.Text // Relato opcional (Máximo 280 caracteres)
+  deviceId       String   // Para prevenção de spam
+  createdAt      DateTime @default(now())
+  
+  // Relação com o ponto de apoio
+  supportPoint   SupportPoint @relation(fields: [supportPointId], references: [id])
+  supportPointId String
+
+  @@index([supportPointId])
+  @@map("support_point_evaluations")
 }
