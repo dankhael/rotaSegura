@@ -91,7 +91,14 @@ function RecenterOnRequest({
   zoom: number;
 }) {
   const map = useMap();
-  const lastTokenRef = useRef(token);
+  // Baseline = 0 ("nenhum request emitido"), NÃO `useRef(token)`. ShelterMap é
+  // carregado via dynamic(..., { ssr: false }) — pode montar DEPOIS do MapCard
+  // já ter rodado o useEffect do deep-link e disparado setFocusToken(1). Nesse
+  // caso useRef(token) congelaria lastTokenRef = 1, igual ao token corrente, e
+  // a comparação no efeito falharia — o pan da notificação nunca aconteceria.
+  // Botão "minha localização" não regride: o pai começa em 0, usuário clica
+  // depois → vira 1 → 1 !== 0 → pana.
+  const lastTokenRef = useRef(0);
   const pendingRef = useRef(false);
 
   useEffect(() => {

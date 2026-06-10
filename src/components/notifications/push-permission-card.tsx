@@ -170,7 +170,13 @@ const primaryButtonStyle: React.CSSProperties = {
   marginTop: 10,
   padding: "8px 14px",
   borderRadius: 8,
-  background: "var(--accent, #2563eb)",
+  // `--accent` no design system é o token "muted" do shadcn (oklch(0.97 …) no
+  // tema claro), feito pra fundo sutil de hover — não pra cor de marca. Usar
+  // var(--accent, #2563eb) deixava o fallback como letra morta (a variável
+  // existe), resultando em fundo quase-branco + color:white = invisível.
+  // `--safe-ink` é o verde escuro do app, contrasta com branco (~4.8:1 AA) e
+  // bate visualmente com a borda do card "Alertas ativados".
+  background: "var(--safe-ink)",
   color: "white",
   fontSize: 13,
   fontWeight: 600,
