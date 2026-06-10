@@ -11,6 +11,10 @@ const envSchema = z.object({
   CLUSTER_RADIUS_M: z.coerce.number().int().positive().default(200),
   CLUSTER_WINDOW_MIN: z.coerce.number().int().positive().default(120),
   CLUSTER_THRESHOLD: z.coerce.number().int().min(2).default(3),
+  // Janela de validade de uma ocorrência no mapa público (RS-TK05). Após
+  // lastReportedAt + janela, ela some do GET /api/occurrences mas permanece
+  // no banco para o dashboard/auditoria. Editável no Vercel sem novo build.
+  OCCURRENCE_ACTIVE_WINDOW_MIN: z.coerce.number().int().positive().default(1440),
   // Web Push / VAPID (RS-TK04). Opcionais para o boot não quebrar em ambientes
   // sem push (CI/test); o dispatcher checa em runtime e degrada silenciosamente.
   VAPID_PUBLIC_KEY: z.string().optional(),

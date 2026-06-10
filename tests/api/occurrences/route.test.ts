@@ -106,6 +106,36 @@ describe("GET /api/occurrences", () => {
     expect(body.meta).toMatchObject({ total: 3, totalPages: 2 });
   });
 
+  // RS-TK05: ocorrências além de OCCURRENCE_ACTIVE_WINDOW_MIN saem do mapa
+  // público. Os testes usam o default (1440 min) — env.ts parseia process.env
+  // no import, então mutar a var aqui não teria efeito; backdatear o registro
+  // além da janela é o caminho determinístico.
+  it("exclui ocorrências fora da janela de validade (RS-TK05)", async () => {
+    await seedReport({ type: "FLOOD", latitude: -8.05, longitude: -34.88, deviceId: devId() });
+    await seedReport({ type: "FIRE", latitude: -8.2, longitude: -35.0, deviceId: devId() });
+
+    const expired = new Date(Date.now() - 25 * 60 * 60_000);
+    await prisma.$executeRaw`UPDATE "occurrences" SET "lastReportedAt" = ${expired} WHERE type = 'FIRE'`;
+
+    const res = await GET(makeRequest("http://localhost:3000/api/occurrences"));
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].type).toBe("FLOOD");
+    // meta.total também precisa refletir o filtro (COUNT e SELECT em queries separadas)
+    expect(body.meta.total).toBe(1);
+  });
+
+  it("expiração não apaga a ocorrência do banco (RS-TK05)", async () => {
+    await seedReport({ type: "FLOOD", latitude: -8.05, longitude: -34.88, deviceId: devId() });
+    await seedReport({ type: "FIRE", latitude: -8.2, longitude: -35.0, deviceId: devId() });
+
+    const expired = new Date(Date.now() - 25 * 60 * 60_000);
+    await prisma.$executeRaw`UPDATE "occurrences" SET "lastReportedAt" = ${expired} WHERE type = 'FIRE'`;
+
+    // Histórico preservado para auditoria/dashboard admin: some do mapa, não do banco.
+    expect(await prisma.occurrence.count()).toBe(2);
+  });
+
   it("retorna 400 para status inválido", async () => {
     const res = await GET(makeRequest("http://localhost:3000/api/occurrences?status=INVALID"));
     expect(res.status).toBe(400);
