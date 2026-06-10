@@ -66,6 +66,13 @@ type ShelterMapProps = {
   supportPoints?: SupportPoint[];
   /** Ocorrências agregadas exibidas como camada agrupada sobre o mapa (US06). */
   occurrences?: Occurrence[];
+  /**
+   * Ponto arbitrário para focar quando `focusToken` muda. Usado pelo deep-link
+   * de notificação push (RS-TK04) — o SW redireciona para `/?lat=&lng=` e a
+   * home converte isso em uma chamada de pan único.
+   */
+  focusPoint?: LatLng | null;
+  focusToken?: number;
 };
 
 /**
@@ -84,7 +91,14 @@ function RecenterOnRequest({
   zoom: number;
 }) {
   const map = useMap();
-  const lastTokenRef = useRef(token);
+  // Baseline = 0 ("nenhum request emitido"), NÃO `useRef(token)`. ShelterMap é
+  // carregado via dynamic(..., { ssr: false }) — pode montar DEPOIS do MapCard
+  // já ter rodado o useEffect do deep-link e disparado setFocusToken(1). Nesse
+  // caso useRef(token) congelaria lastTokenRef = 1, igual ao token corrente, e
+  // a comparação no efeito falharia — o pan da notificação nunca aconteceria.
+  // Botão "minha localização" não regride: o pai começa em 0, usuário clica
+  // depois → vira 1 → 1 !== 0 → pana.
+  const lastTokenRef = useRef(0);
   const pendingRef = useRef(false);
 
   useEffect(() => {
@@ -193,6 +207,8 @@ export default function ShelterMap({
   recenterZoom = 14,
   supportPoints = [],
   occurrences = [],
+  focusPoint = null,
+  focusToken = 0,
 }: ShelterMapProps) {
   const visiblePoints =
     filter === "all" ? supportPoints : supportPoints.filter((p) => p.type === filter);
@@ -238,6 +254,7 @@ export default function ShelterMap({
         <OccurrenceLayer occurrences={occurrences} />
         <SelectedPointMarker onChange={onSelect} />
         <RecenterOnRequest position={userPosition} token={centerOnUserToken} zoom={recenterZoom} />
+        <RecenterOnRequest position={focusPoint} token={focusToken} zoom={recenterZoom} />
       </MapContainer>
     </div>
   );

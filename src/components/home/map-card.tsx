@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
@@ -43,11 +43,43 @@ export function MapCard() {
   const fallbackVisible = status === "denied" || status === "unavailable";
   const locating = status === "prompting";
   const [centerToken, setCenterToken] = useState(0);
+  const [focusPoint, setFocusPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [focusToken, setFocusToken] = useState(0);
 
   const userPosition = useMemo(
     () => (coords ? { lat: coords.lat, lng: coords.lng } : null),
     [coords],
   );
+
+  // Deep-link da notificação push (RS-TK04): o SW navega para /?lat=&lng=
+  // (ver public/sw.js → notificationclick). Lemos via window.location no mount
+  // em vez de useSearchParams — o hook exigiria envolver a página em Suspense,
+  // e essa leitura é one-shot. Mesmo padrão de set-state-in-effect que o
+  // PushPermissionCard usa: a fonte é só-cliente, então precisa rodar pós-mount.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    // Cuidado: Number(null) === 0 e Number.isFinite(0) === true — checar
+    // presença antes de converter, senão toda visita normal à home (sem deep-
+    // link) centralizaria no (0,0) (Golfo da Guiné).
+    const latRaw = params.get("lat");
+    const lngRaw = params.get("lng");
+    if (latRaw === null || lngRaw === null) return;
+
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    setFocusPoint({ lat, lng });
+    setFocusToken((t) => t + 1);
+
+    // Deep-link é one-shot. Sem limpar a URL, F5 re-centralizaria no mesmo
+    // ponto a cada refresh — confunde o usuário que esquece da notificação.
+    // replaceState não dispara navegação, só atualiza a barra de endereço.
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, "", cleanUrl);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // The button always asks for a fresh fix and asks the map to recenter.
   // RecenterOnRequest holds the request until coords appear, so a click
@@ -123,6 +155,8 @@ export function MapCard() {
           userSource={source}
           centerOnUserToken={centerToken}
           occurrences={occurrences}
+          focusPoint={focusPoint}
+          focusToken={focusToken}
         />
         <Legend />
         <MapControls onLocate={handleLocate} locating={locating} />
