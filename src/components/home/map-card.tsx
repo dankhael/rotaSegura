@@ -72,6 +72,12 @@ export function MapCard() {
 
     setFocusPoint({ lat, lng });
     setFocusToken((t) => t + 1);
+
+    // Deep-link é one-shot. Sem limpar a URL, F5 re-centralizaria no mesmo
+    // ponto a cada refresh — confunde o usuário que esquece da notificação.
+    // replaceState não dispara navegação, só atualiza a barra de endereço.
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, "", cleanUrl);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
