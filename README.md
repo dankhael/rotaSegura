@@ -154,19 +154,20 @@ Checklist mínimo do PR:
 
 Veja [.env.example](.env.example) para a lista canônica.
 
-| Variável              | Obrigatória | Default       | Descrição                                                             |
-| --------------------- | ----------- | ------------- | --------------------------------------------------------------------- |
-| `DATABASE_URL`        | sim         | —             | URL Postgres com extensão PostGIS habilitada                          |
-| `NODE_ENV`            | não         | `development` | `development`, `test`, `production`                                   |
-| `JWT_SECRET`          | sim         | —             | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32` |
-| `JWT_EXPIRES_IN`      | não         | `1h`          | Tempo de vida do token (aceita formato vercel/ms)                     |
-| `SEED_ADMIN_EMAIL`    | não         | —             | E-mail do admin criado por `npm run db:seed`                          |
-| `SEED_ADMIN_PASSWORD` | não         | —             | Senha do admin do seed (será hasheada com bcrypt antes de gravar)     |
-| `CLUSTER_RADIUS_M`    | não         | `200`         | Raio (m) usado para agrupar relatos próximos (US06)                   |
-| `CLUSTER_WINDOW_MIN`  | não         | `120`         | Janela temporal (min) para considerar relatos no mesmo cluster        |
-| `CLUSTER_THRESHOLD`   | não         | `3`           | Número de `deviceId`s distintos para elevar a ocorrência              |
+| Variável                       | Obrigatória | Default       | Descrição                                                                                                                                      |
+| ------------------------------ | ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                 | sim         | —             | URL Postgres com extensão PostGIS habilitada                                                                                                   |
+| `NODE_ENV`                     | não         | `development` | `development`, `test`, `production`                                                                                                            |
+| `JWT_SECRET`                   | sim         | —             | Segredo HS256 do JWT (≥ 32 chars). Gere com `openssl rand -base64 32`                                                                          |
+| `JWT_EXPIRES_IN`               | não         | `1h`          | Tempo de vida do token (aceita formato vercel/ms)                                                                                              |
+| `SEED_ADMIN_EMAIL`             | não         | —             | E-mail do admin criado por `npm run db:seed`                                                                                                   |
+| `SEED_ADMIN_PASSWORD`          | não         | —             | Senha do admin do seed (será hasheada com bcrypt antes de gravar)                                                                              |
+| `CLUSTER_RADIUS_M`             | não         | `200`         | Raio (m) usado para agrupar relatos próximos (US06)                                                                                            |
+| `CLUSTER_WINDOW_MIN`           | não         | `120`         | Janela temporal (min) para considerar relatos no mesmo cluster                                                                                 |
+| `CLUSTER_THRESHOLD`            | não         | `3`           | Número de `deviceId`s distintos para elevar a ocorrência                                                                                       |
+| `OCCURRENCE_ACTIVE_WINDOW_MIN` | não         | `1440`        | Janela (min) em que uma ocorrência segue ativa no mapa público (RS-TK05). Expirada some do mapa, mas permanece no banco para o dashboard admin |
 
-A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando. No Vercel, alterar as vars `CLUSTER_*` no dashboard não exige novo build (Functions releem na próxima inicialização da instância).
+A validação roda no boot via `src/lib/env.ts` (Zod) — falha rápido se algo estiver faltando. No Vercel, alterar as vars `CLUSTER_*` e `OCCURRENCE_ACTIVE_WINDOW_MIN` no dashboard não exige novo build (Functions releem na próxima inicialização da instância).
 
 ## Regras de agrupamento de relatos (US06)
 
