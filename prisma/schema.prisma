@@ -78,6 +78,30 @@ model Report {
   @@map("reports")
 }
 
+// Inscrição Web Push de um dispositivo (RS-TK04).
+// O sistema é anônimo para usuários finais — a chave de identidade é o `deviceId`
+// já usado em Reports/clustering. `userId` é opcional e cobre o caso admin logado.
+// `location` guarda a última posição conhecida do dispositivo para que o disparo
+// por raio (sendPushToNearbyUsers) possa filtrar via PostGIS ST_DWithin.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  deviceId  String?
+  userId    String?
+  latitude  Float
+  longitude Float
+  location  Unsupported("geography(Point, 4326)")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([location], type: Gist)
+  @@index([deviceId])
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
 model SupportPoint {
   id        String   @id @default(cuid())
   name      String

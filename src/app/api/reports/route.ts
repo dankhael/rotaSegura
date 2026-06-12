@@ -1,11 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { badRequest, fromZodError, internalError } from "@/lib/api-response";
 import { clusterReport } from "@/lib/occurrences/cluster";
+import { sendPushToNearbyUsers } from "@/lib/notifications/dispatch";
 import { type RawReport, toReport } from "@/lib/reports/serialize";
 import { createReportSchema, reportListQuerySchema } from "@/lib/validations/report";
+import type { Occurrence } from "@/types/occurrence";
 import type { Report } from "@/types/report";
 import type { PaginatedResponse } from "@/types/support-point";
 
@@ -58,6 +60,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Envoltório que isola exceções de push: Promise não-aguardada não deve
+// escapar para o handler. CLAUDE.md §"Exception messages" — logamos com contexto.
+async function notifyNearby(occurrence: Occurrence): Promise<void> {
+  try {
+    await sendPushToNearbyUsers(occurrence);
+  } catch (err) {
+    console.error("[notifyNearby] occurrenceId=" + occurrence.id, err);
+  }
+}
+
+// Agenda trabalho pós-resposta. Em produção (Next runtime) `after()` mantém a
+// Function viva até a Promise resolver — evita push perdido quando a Vercel
+// encerra a invocação. Em testes unit (sem request scope) `after()` lança o
+// erro abaixo; caímos para `void` que é equivalente ao comportamento anterior.
+// Outros erros (mudança de assinatura, work !== Promise) re-throw — não
+// queremos swallow silencioso quando algo genuíno der errado.
+const AFTER_OUT_OF_SCOPE = "outside a request scope";
+
+function scheduleAfterResponse(work: Promise<void>): void {
+  try {
+    after(work);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes(AFTER_OUT_OF_SCOPE)) {
+      void work;
+      return;
+    }
+    throw err;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: unknown;
@@ -95,6 +127,17 @@ export async function POST(request: NextRequest) {
         ),
       { isolationLevel: "ReadCommitted", timeout: 5000 },
     );
+
+    // RS-TK04: dispara push para vizinhos só quando a ocorrência é promovida
+    // (PENDING → CONFIRMED). Notificar em criação PENDING geraria alertas a
+    // partir de relatos isolados, ainda não validados pelo threshold de US06.
+    // `after()` agenda o trabalho para rodar DEPOIS da resposta sair, sem
+    // arriscar a Function ser encerrada (em Vercel) com a Promise solta — que
+    // era o problema do `void notifyNearby(...)` anterior. AC-09 garantido
+    // pelo try/catch interno de notifyNearby.
+    if (result.promoted) {
+      scheduleAfterResponse(notifyNearby(result.occurrence));
+    }
 
     // 200 idempotente quando deviceId já estava na ocorrência; 201 caso novo report.
     const status = result.duplicateDevice ? 200 : 201;

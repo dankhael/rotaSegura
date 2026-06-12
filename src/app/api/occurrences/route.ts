@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
+import { env } from "@/lib/env";
 import { fromZodError, internalError } from "@/lib/api-response";
+import { activeWindowCutoff } from "@/lib/occurrences/active-window";
 import { type RawOccurrence, toOccurrence } from "@/lib/occurrences/serialize";
 import { occurrenceListQuerySchema } from "@/lib/validations/occurrence";
 import type { Occurrence } from "@/types/occurrence";
@@ -24,10 +26,15 @@ export async function GET(request: NextRequest) {
     const { page, limit, status, type } = parsed.data;
     const offset = (page - 1) * limit;
 
+    // RS-TK05: ocorrências além da janela saem do mapa público, mas seguem no
+    // banco — os endpoints admin (/summary, /export, /[id]) não filtram por idade.
+    const cutoff = activeWindowCutoff(env.OCCURRENCE_ACTIVE_WINDOW_MIN, new Date());
+
     const countResult = await prisma.$queryRaw<{ total: bigint }[]>`
       SELECT COUNT(*) AS total FROM "occurrences"
       WHERE (${status ?? null}::text IS NULL OR status::text = ${status ?? null})
         AND (${type ?? null}::text IS NULL OR type = ${type ?? null})
+        AND "lastReportedAt" >= ${cutoff}
     `;
     const total = Number(countResult[0].total);
 
@@ -40,6 +47,7 @@ export async function GET(request: NextRequest) {
       FROM "occurrences"
       WHERE (${status ?? null}::text IS NULL OR status::text = ${status ?? null})
         AND (${type ?? null}::text IS NULL OR type = ${type ?? null})
+        AND "lastReportedAt" >= ${cutoff}
       ORDER BY "lastReportedAt" DESC
       LIMIT ${limit} OFFSET ${offset}
     `;

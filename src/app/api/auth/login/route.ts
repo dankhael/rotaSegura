@@ -13,29 +13,13 @@ import { signAuthToken } from "@/lib/auth/jwt";
 import { verifyPassword } from "@/lib/auth/password";
 import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { setSessionCookie } from "@/lib/auth/session";
+import { getClientIp } from "@/lib/http/client-ip";
 import { UserRoleSchema, loginSchema, type UserRole } from "@/lib/validations/auth";
 
 const RATE_LIMIT = { windowMs: 60_000, max: 5 };
 
 // anti-timing: nivela o tempo de resposta no caminho de e-mail inexistente.
 const DUMMY_PASSWORD_HASH = "$2a$12$CwTycUXWue0Thq9StjUM0uJ8O3p3ZcN8C5KQk6T2RkOdq0fLpmS9G";
-
-// requer proxy confiável (Vercel/Cloudflare); sem proxy, x-forwarded-for é forjável.
-function getClientIp(request: NextRequest): string {
-  const vercelIp = request.headers.get("x-vercel-forwarded-for");
-  if (vercelIp) return vercelIp.split(",")[0]?.trim() || "unknown";
-
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp) return realIp;
-
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-
-  return "unknown";
-}
 
 async function parseBody(request: NextRequest) {
   try {

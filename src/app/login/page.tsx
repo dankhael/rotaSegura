@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
+
 import { LoginHeader } from "@/components/login/login-header";
 import { LoginForm } from "@/components/login/login-form";
+
+// Deixa explícito na aba que esta rota é de acesso administrativo (RS-TK05).
+export const metadata: Metadata = { title: "Acesso administrativo — Rota Segura" };
 
 // Aceita apenas paths internos absolutos para evitar open redirect via `?next=`
 // (algo tipo //evil.com ou https://evil.com cairia fora).

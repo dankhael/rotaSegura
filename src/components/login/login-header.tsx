@@ -33,10 +33,12 @@ export function LoginHeader() {
       </Link>
 
       <div className="text-center">
-        <h1 className="text-3xl font-extrabold tracking-tight text-(--ink)">Entrar</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-(--ink)">
+          Acesso administrativo
+        </h1>
 
         <p className="mt-2 text-sm leading-relaxed text-(--ink-3)">
-          Acesse o painel administrativo
+          Entre com suas credenciais para acessar o painel do administrador
         </p>
       </div>
     </div>
