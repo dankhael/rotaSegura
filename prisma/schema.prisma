@@ -112,16 +112,13 @@ model DonationChannel {
 }
 
 model SupportPointEvaluation {
-  id             String   @id @default(uuid())
-  rating         Int      // De 1 a 5
-  comment        String?  @db.Text // Relato opcional (Máximo 280 caracteres)
-  deviceId       String   // Para prevenção de spam
-  createdAt      DateTime @default(now())
-  
-  // Relação com o ponto de apoio
-  supportPoint   SupportPoint @relation(fields: [supportPointId], references: [id])
+  id             String       @id @default(cuid())
+  rating         Int          
+  comment        String?      @db.VarChar(280)
+  deviceId       String
   supportPointId String
+  supportPoint   SupportPoint @relation(fields: [supportPointId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
-  @@index([supportPointId])
-  @@map("support_point_evaluations")
+  @@unique([supportPointId, deviceId]) 
 }
