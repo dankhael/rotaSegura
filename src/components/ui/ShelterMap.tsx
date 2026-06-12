@@ -156,7 +156,11 @@ function SupportPointMarker({ point }: { point: SupportPoint }) {
         <div style={{ padding: 14, width: 240 }}>
           {!isEvaluating ? (
             <>
-              <button onClick={() => setIsEvaluating(true)} style={{ width: '100%', background: 'var(--primary)', color: 'white', border: 'none', padding: 8, borderRadius: 6, cursor: 'pointer' }}>
+              <strong>{point.name}</strong>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '8px 0 0 0' }}>
+                {style.label}
+              </div>
+              <button onClick={() => setIsEvaluating(true)} style={{ width: '100%', background: 'var(--primary)', color: 'white', border: 'none', padding: 8, borderRadius: 6, cursor: 'pointer', marginTop: 8 }}>
                 Avaliar Local
               </button>
             </>
