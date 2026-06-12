@@ -1,9 +1,10 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+
+import { SupportPointEvaluationForm } from "./SupportPointEvaluationForm";
 
 import { OccurrenceLayer } from "@/components/map/occurrence-layer";
 import type { Occurrence } from "@/types/occurrence";
@@ -132,44 +133,8 @@ function SelectedPointMarker({ onChange }: { onChange?: (point: LatLng) => void 
 
 function SupportPointMarker({ point }: { point: SupportPoint }) {
   const style = SUPPORT_POINT_STYLE[point.type] ?? SUPPORT_POINT_STYLE.OTHER;
-  const icon = makePinIcon(style.cssKind, style.glyph);
-
+  const icon = useMemo(() => makePinIcon(style.cssKind, style.glyph), [style]);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSend = async () => {
-    if (rating === 0) return alert("Selecione uma nota!");
-
-    setIsSubmitting(true); 
-
-    let deviceId = localStorage.getItem("rota_segura_device_id");
-    if (!deviceId) {
-      deviceId = crypto.randomUUID();
-      localStorage.setItem("rota_segura_device_id", deviceId);
-    }
-
-    try {
-      const res = await fetch(`/api/support-points/${point.id}/evaluations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, comment, deviceId }),
-      });
-
-      if (res.ok) {
-        alert("Avaliação enviada com sucesso!");
-        setIsEvaluating(false);
-        setRating(0);
-        setComment("");
-      }
-    } catch {
-      alert("Erro ao conectar com o servidor.");
-    } finally {
-      setIsSubmitting(false); 
-    }
-  };
-
 
   return (
     <Marker position={[point.latitude, point.longitude]} icon={icon}>
@@ -177,65 +142,15 @@ function SupportPointMarker({ point }: { point: SupportPoint }) {
         <div style={{ padding: 14, width: 240 }}>
           {!isEvaluating ? (
             <>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4, textTransform: "uppercase", background: "var(--surface-2)", color: "var(--ink-2)" }}>
-                  {style.label}
-                </span>
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", margin: "0 0 4px" }}>
-                {point.name}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 12 }}>
-                {point.capacity != null ? `Capacidade: ${point.capacity}` : "Capacidade não informada"}
-              </div>
-
-              <button 
-                onClick={() => setIsEvaluating(true)}
-                style={{ width: '100%', background: '#2563eb', color: 'white', padding: '8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}
-              >
-                Avaliar este local
+              <button onClick={() => setIsEvaluating(true)} style={{ width: '100%', background: 'var(--primary)', color: 'white', border: 'none', padding: 8, borderRadius: 6, cursor: 'pointer' }}>
+                Avaliar Local
               </button>
             </>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>Sua nota:</div>
-              
-              <div style={{ display: 'flex', gap: 6 }}>
-                {[3-7].map((star) => (
-                  <button 
-                    key={star} 
-                    onClick={() => setRating(star)}
-                    style={{ fontSize: 22, color: rating >= star ? '#f59e0b' : '#d1d5db', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    ★
-                  </button>
-                ))}
-              </div>
-
-              <textarea
-                placeholder="Opcional: Conte sua experiência..."
-                maxLength={280}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                style={{ width: '100%', minHeight: 60, padding: 8, fontSize: 12, borderRadius: 4, border: '1px solid #e2e8f0', resize: 'none' }}
-              />
-
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button 
-                  disabled={isSubmitting}
-                  onClick={handleSend}
-                  style={{ flex: 1, background: '#16a34a', color: 'white', padding: '6px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                >
-                  {isSubmitting ? "Enviando..." : "Enviar"}
-                </button>
-                <button 
-                  onClick={() => setIsEvaluating(false)}
-                  style={{ flex: 1, background: '#f1f5f9', color: '#475569', padding: '6px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12 }}
-                >
-                  Voltar
-                </button>
-              </div>
-            </div>
+            <SupportPointEvaluationForm 
+              pointId={point.id} 
+              onCancel={() => setIsEvaluating(false)} 
+            />
           )}
         </div>
       </Popup>
