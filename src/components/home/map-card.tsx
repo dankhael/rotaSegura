@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
+import { Search } from "lucide-react";
 
+import { apiEndpoints } from "@/lib/api/endpoints";
 import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import { useOccurrences } from "@/lib/hooks/use-occurrences";
 import { useSupportPoints } from "@/lib/hooks/use-support-points";
@@ -36,6 +38,10 @@ function countFor(points: SupportPoint[], id: Filter): number {
 
 export function MapCard() {
   const [filter, setFilter] = useState<Filter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  const [searchStatus, setSearchStatus] = useState<"idle" | "success" | "error">("idle");
   const { coords, source, status, retry } = useGeolocation();
   const { occurrences, hasError: occurrencesFailed } = useOccurrences();
   const { supportPoints, hasError: supportPointsFailed } = useSupportPoints();
@@ -89,6 +95,47 @@ export function MapCard() {
     setCenterToken((t) => t + 1);
   }, [retry]);
 
+  const handleSearch = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const query = searchQuery.trim();
+      if (!query || searching) return;
+
+      setSearching(true);
+      setSearchStatus("idle");
+      setSearchMessage(null);
+
+      try {
+        const response = await fetch(`${apiEndpoints.geocode}?q=${encodeURIComponent(query)}`, {
+          headers: { Accept: "application/json" },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error ?? "Local nao encontrado");
+        }
+
+        const lat = Number(data.latitude);
+        const lng = Number(data.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          throw new Error("Local nao encontrado");
+        }
+
+        setFocusPoint({ lat, lng });
+        setFocusToken((t) => t + 1);
+        setSearchStatus("success");
+        setSearchMessage(data.address ?? query);
+      } catch (err) {
+        setSearchStatus("error");
+        setSearchMessage(err instanceof Error ? err.message : "Local nao encontrado");
+      } finally {
+        setSearching(false);
+      }
+    },
+    [searchQuery, searching],
+  );
+
   return (
     <section
       style={{
@@ -116,22 +163,69 @@ export function MapCard() {
             {total} {total === 1 ? "ponto ativo" : "pontos ativos"}
           </span>
         </div>
-        <div
-          role="group"
-          aria-label="Filtros de pontos de apoio"
-          className="flex gap-1.5 flex-wrap"
-        >
-          {FILTER_DEFS.map((f) => (
-            <FilterChip
-              key={f.id}
-              filter={{ ...f, count: countFor(supportPoints, f.id) }}
-              active={filter === f.id}
-              onClick={() => setFilter(f.id)}
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <form
+            role="search"
+            aria-label="Pesquisar local no mapa"
+            onSubmit={handleSearch}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              type="search"
+              aria-label="Pesquisar local"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Buscar bairro ou local"
+              style={{
+                width: 210,
+                maxWidth: "58vw",
+                height: 34,
+                border: "1px solid var(--line)",
+                borderRadius: 8,
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: 12,
+                padding: "0 10px",
+              }}
             />
-          ))}
+            <button
+              type="submit"
+              aria-label="Buscar local"
+              disabled={searching || searchQuery.trim().length === 0}
+              style={{
+                width: 34,
+                height: 34,
+                border: "1px solid var(--line)",
+                borderRadius: 8,
+                display: "grid",
+                placeItems: "center",
+                background: searching ? "var(--line-soft)" : "var(--ink)",
+                color: searching ? "var(--ink-3)" : "white",
+                cursor: searching || searchQuery.trim().length === 0 ? "not-allowed" : "pointer",
+                opacity: searchQuery.trim().length === 0 ? 0.65 : 1,
+              }}
+            >
+              <Search aria-hidden size={16} />
+            </button>
+          </form>
+          <div
+            role="group"
+            aria-label="Filtros de pontos de apoio"
+            className="flex gap-1.5 flex-wrap"
+          >
+            {FILTER_DEFS.map((f) => (
+              <FilterChip
+                key={f.id}
+                filter={{ ...f, count: countFor(supportPoints, f.id) }}
+                active={filter === f.id}
+                onClick={() => setFilter(f.id)}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
+      {searchMessage && <MapSearchNotice status={searchStatus}>{searchMessage}</MapSearchNotice>}
       {fallbackVisible && <GeolocationNotice denied={status === "denied"} />}
       {supportPointsFailed && (
         <MapDataNotice>
@@ -162,6 +256,37 @@ export function MapCard() {
         <MapControls onLocate={handleLocate} locating={locating} />
       </div>
     </section>
+  );
+}
+
+function MapSearchNotice({
+  status,
+  children,
+}: {
+  status: "idle" | "success" | "error";
+  children: ReactNode;
+}) {
+  const isError = status === "error";
+  return (
+    <div
+      role={isError ? "alert" : "status"}
+      style={{
+        padding: "10px 18px",
+        borderBottom: "1px solid var(--line-soft)",
+        background: isError ? "var(--emergency-soft)" : "var(--safe-soft)",
+        color: isError ? "var(--emergency-ink)" : "var(--safe-ink)",
+        fontSize: 12,
+        lineHeight: 1.45,
+      }}
+    >
+      {isError ? (
+        children
+      ) : (
+        <>
+          <strong style={{ fontWeight: 600 }}>Mapa centralizado em:</strong> {children}
+        </>
+      )}
+    </div>
   );
 }
 
