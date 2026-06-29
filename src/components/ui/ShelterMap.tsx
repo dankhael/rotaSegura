@@ -1,9 +1,10 @@
 "use client";
-
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+
+import { SupportPointEvaluationForm } from "./SupportPointEvaluationForm";
 
 import { OccurrenceLayer } from "@/components/map/occurrence-layer";
 import type { Occurrence } from "@/types/occurrence";
@@ -146,41 +147,29 @@ function SelectedPointMarker({ onChange }: { onChange?: (point: LatLng) => void 
 
 function SupportPointMarker({ point }: { point: SupportPoint }) {
   const style = SUPPORT_POINT_STYLE[point.type] ?? SUPPORT_POINT_STYLE.OTHER;
-  const icon = makePinIcon(style.cssKind, style.glyph);
+  const icon = useMemo(() => makePinIcon(style.cssKind, style.glyph), [style]);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+
   return (
     <Marker position={[point.latitude, point.longitude]} icon={icon}>
       <Popup>
-        <div style={{ padding: 14 }}>
-          <div style={{ marginBottom: 8 }}>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: "2px 6px",
-                borderRadius: 4,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                background: "var(--surface-2)",
-                color: "var(--ink-2)",
-              }}
-            >
-              {style.label}
-            </span>
-          </div>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              letterSpacing: "-0.01em",
-              color: "var(--ink)",
-              margin: "0 0 4px",
-            }}
-          >
-            {point.name}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.4 }}>
-            {point.capacity != null ? `Capacidade: ${point.capacity}` : "Capacidade não informada"}
-          </div>
+        <div style={{ padding: 14, width: 240 }}>
+          {!isEvaluating ? (
+            <>
+              <strong>{point.name}</strong>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '8px 0 0 0' }}>
+                {style.label}
+              </div>
+              <button onClick={() => setIsEvaluating(true)} style={{ width: '100%', background: 'var(--primary)', color: 'white', border: 'none', padding: 8, borderRadius: 6, cursor: 'pointer', marginTop: 8 }}>
+                Avaliar Local
+              </button>
+            </>
+          ) : (
+            <SupportPointEvaluationForm 
+              pointId={point.id} 
+              onCancel={() => setIsEvaluating(false)} 
+            />
+          )}
         </div>
       </Popup>
     </Marker>

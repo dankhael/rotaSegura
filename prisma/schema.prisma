@@ -115,6 +115,8 @@ model SupportPoint {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  evaluations SupportPointEvaluation[]
+
   @@index([location], type: Gist)
   @@map("support_points")
 }
@@ -131,4 +133,16 @@ model DonationChannel {
 
   @@index([channelType])
   @@map("donation_channels")
+}
+
+model SupportPointEvaluation {
+  id             String       @id @default(cuid())
+  rating         Int          
+  comment        String?      @db.VarChar(280)
+  deviceId       String
+  supportPointId String
+  supportPoint   SupportPoint @relation(fields: [supportPointId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([supportPointId, deviceId]) 
 }
