@@ -243,6 +243,90 @@ describe("AdminTabs", () => {
     });
   });
 
+  it("preenche coordenadas a partir do endereco antes de cadastrar local", async () => {
+    const created: SupportPoint = {
+      ...pointA,
+      id: "sp-4",
+      name: "UPA Boa Viagem",
+      type: "MEDICAL",
+      latitude: -8.12,
+      longitude: -34.9006,
+      capacity: null,
+    };
+
+    const fetchMock = mockFetch((input, init) => {
+      if (String(input).startsWith("/api/geocode")) {
+        return jsonResponse({
+          address: "Boa Viagem, Recife, Pernambuco",
+          latitude: -8.1258,
+          longitude: -34.9006,
+        });
+      }
+      if (init?.method === "POST") return jsonResponse(created, 201);
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openLocationsTab();
+
+    await screen.findByText("Nenhum local cadastrado");
+    fireEvent.change(screen.getByLabelText("Endereço"), {
+      target: { value: "Boa Viagem" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /buscar endereço/i }));
+
+    expect(await screen.findByLabelText("Latitude")).toHaveValue("-8.1258");
+    expect(screen.getByLabelText("Longitude")).toHaveValue("-34.9006");
+    expect(screen.getByText(/coordenadas preenchidas/i)).toBeInTheDocument();
+
+    fillForm({
+      name: "UPA Boa Viagem",
+      type: "MEDICAL",
+      latitude: "-8.12",
+      longitude: "-34.9006",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar local" }));
+
+    expect(await screen.findByText("Local cadastrado com sucesso.")).toBeInTheDocument();
+    expect(screen.getByText("UPA Boa Viagem")).toBeInTheDocument();
+
+    const geocodeCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).startsWith("/api/geocode"),
+    );
+    expect(geocodeCall?.[0]).toBe("/api/geocode?q=Boa%20Viagem");
+
+    const postCall = findFetchCall(fetchMock, "POST");
+    expect(getJsonBody(postCall?.[1])).toMatchObject({
+      name: "UPA Boa Viagem",
+      type: "MEDICAL",
+      latitude: -8.12,
+      longitude: -34.9006,
+    });
+  });
+
+  it("exibe erro quando o endereco do local de apoio nao e encontrado", async () => {
+    const fetchMock = mockFetch((input) => {
+      if (String(input).startsWith("/api/geocode")) {
+        return jsonResponse({ error: "Local nao encontrado" }, 404);
+      }
+      return emptyListResponse();
+    });
+
+    render(<AdminTabs />);
+    openLocationsTab();
+
+    await screen.findByText("Nenhum local cadastrado");
+    fireEvent.change(screen.getByLabelText("Endereço"), {
+      target: { value: "Lugar inexistente" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /buscar endereço/i }));
+
+    expect(await screen.findByText(/local nao encontrado/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Latitude")).toHaveValue("");
+    expect(screen.getByLabelText("Longitude")).toHaveValue("");
+    expect(findFetchCall(fetchMock, "POST")).toBeUndefined();
+  });
+
   it("bloqueia coordenadas fora do intervalo e capacidade invalida antes de salvar", async () => {
     const fetchMock = mockFetch(() => emptyListResponse());
 
