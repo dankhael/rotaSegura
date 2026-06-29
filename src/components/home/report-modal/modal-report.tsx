@@ -23,6 +23,11 @@ type FeedbackState = {
   message: string;
 };
 
+type ReportLocation = {
+  lat: number;
+  lng: number;
+};
+
 type ReportModalProps = {
   open: boolean;
   onClose: () => void;
@@ -32,6 +37,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
   const [step, setStep] = useState<Step>("form");
   const [selected, setSelected] = useState<OccurrenceType | null>(null);
   const [address, setAddress] = useState("");
+  const [reportLocation, setReportLocation] = useState<ReportLocation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const controllerRef = useRef<AbortController | null>(null);
@@ -53,6 +59,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     setStep("form");
     setSelected(null);
     setAddress("");
+    setReportLocation(null);
     setIsSubmitting(false);
   }
 
@@ -67,7 +74,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
   // Só geocodifica com o modal aberto e cancela a request anterior quando coords
   // muda (o GPS refina a posição várias vezes), evitando chamadas órfãs ao Nominatim.
   useEffect(() => {
-    if (!open || !coords) return;
+    if (!open || !coords || reportLocation) return;
 
     const controller = new AbortController();
     getAddressFromCoords(coords.lat, coords.lng, controller.signal).then((result) => {
@@ -75,7 +82,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     });
 
     return () => controller.abort();
-  }, [open, coords]);
+  }, [open, coords, reportLocation]);
 
   function handleClose() {
     resetModal();
@@ -83,7 +90,8 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
   }
 
   async function handleConfirm() {
-    if (!selected || !coords) return;
+    const location = reportLocation ?? (coords ? { lat: coords.lat, lng: coords.lng } : null);
+    if (!selected || !location) return;
 
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -100,8 +108,8 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
         signal: controller.signal,
         body: JSON.stringify({
           type: selected,
-          latitude: coords.lat,
-          longitude: coords.lng,
+          latitude: location.lat,
+          longitude: location.lng,
           occurredAt,
           ...(deviceId ? { deviceId } : {}),
         }),
@@ -139,6 +147,29 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleLocationSearch(query: string) {
+    const response = await fetch(`${apiEndpoints.geocode}?q=${encodeURIComponent(query)}`, {
+      headers: { Accept: "application/json" },
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error ?? "Local nao encontrado");
+    }
+
+    const lat = Number(data.latitude);
+    const lng = Number(data.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new Error("Local nao encontrado");
+    }
+
+    const nextAddress = data.address ?? query;
+    setReportLocation({ lat, lng });
+    setAddress(nextAddress);
+
+    return nextAddress;
   }
 
   const options: {
@@ -237,6 +268,7 @@ export function ReportModal({ open, onClose }: ReportModalProps) {
               isSubmitting={isSubmitting}
               onBack={() => setStep("form")}
               onConfirm={handleConfirm}
+              onLocationSearch={handleLocationSearch}
             />
           )}
         </DialogContent>
